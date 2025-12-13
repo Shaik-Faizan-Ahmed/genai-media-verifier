@@ -1,3 +1,4 @@
+from services.report_generator import generate_report
 from fastapi import FastAPI, UploadFile, File
 import os, shutil
 
@@ -26,7 +27,10 @@ async def analyze_image(file: UploadFile = File(...)):
     else:
         risk = "Low"
 
+    report = generate_report(fake_prob, risk)
+
     return {
         "fake_probability": round(fake_prob, 2),
-        "risk_level": risk
+        "risk_level": risk,
+        "report": report
     }
