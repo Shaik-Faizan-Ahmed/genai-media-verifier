@@ -1,17 +1,17 @@
 # Configuration for Deepfake Detection System
 
-# Base ensemble weights (will be dynamically adjusted)
+# AGGRESSIVE ensemble weights - heavily favors neural networks when confident
 ENSEMBLE_WEIGHTS = {
-    'neural': 0.50,      # Increased from 0.40 - Neural networks are most reliable
-    'frequency': 0.25,   # Decreased from 0.30 - Can be unreliable for some fakes
-    'face': 0.15,        # Decreased from 0.20 - Only useful when face detected
-    'metadata': 0.10     # Kept same - Supporting evidence
+    'neural': 0.50,      # Base weight for neural networks
+    'frequency': 0.25,   # Frequency domain analysis
+    'face': 0.15,        # Facial analysis (only when face detected)
+    'metadata': 0.10     # Metadata forensics
 }
 
 # Risk level thresholds
 RISK_THRESHOLDS = {
-    'high': 0.65,    # Lowered from 0.70 - More sensitive detection
-    'medium': 0.40   # Kept same
+    'high': 0.65,    # More sensitive detection
+    'medium': 0.40
 }
 
 # Model configuration
@@ -31,15 +31,17 @@ FACE_ANALYSIS_ENABLED = True
 METADATA_ANALYSIS_ENABLED = True
 NEURAL_ENSEMBLE_ENABLED = True
 
-# Dynamic weighting settings
+# AGGRESSIVE dynamic weighting settings
 ENABLE_DYNAMIC_WEIGHTING = True
-NEURAL_CONFIDENCE_BOOST = 1.5  # Boost neural weight when confidence > 90%
-AGREEMENT_BOOST = 1.3          # Boost when multiple methods agree
-FACE_NOT_DETECTED_REDISTRIBUTE = True  # Give face weight to neural when no face
+NEURAL_CONFIDENCE_BOOST = 2.5      # 2.5x boost when >95% confidence + unanimous
+NEURAL_HIGH_CONFIDENCE_BOOST = 2.0  # 2.0x boost when >93% confidence + strong agreement
+NEURAL_MEDIUM_BOOST = 1.7          # 1.7x boost when >90% confidence
+AGREEMENT_BOOST = 1.4              # 1.4x boost when multiple methods agree
+FACE_NOT_DETECTED_REDISTRIBUTE = True  # Redistribute face weight to neural when no face detected
 
 # MediaPipe face detection confidence
 FACE_DETECTION_CONFIDENCE = 0.5
-MIN_FACE_SIZE = 50  # Minimum face size in pixels
+MIN_FACE_SIZE = 50
 
 # Feature toggles
 ENABLE_DETAILED_BREAKDOWN = True

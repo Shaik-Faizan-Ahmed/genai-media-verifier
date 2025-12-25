@@ -11,44 +11,54 @@ class EnsembleDetector:
         self.models = []
         self.processors = []
         self.model_names = []
+        self.model_types = []
         
-        # Load Model 1: HuggingFace pretrained
+        # Load Model 1: Primary HuggingFace model
         try:
+            cache_dir = "./models_cache/huggingface"
             processor1 = AutoImageProcessor.from_pretrained(
-                "prithivMLmods/Deep-Fake-Detector-Model"
+                "prithivMLmods/Deep-Fake-Detector-Model",
+                cache_dir=cache_dir
             )
             model1 = AutoModelForImageClassification.from_pretrained(
-                "prithivMLmods/Deep-Fake-Detector-Model"
+                "prithivMLmods/Deep-Fake-Detector-Model",
+                cache_dir=cache_dir
             ).to(DEVICE)
             model1.eval()
             
             self.models.append(model1)
             self.processors.append(processor1)
-            self.model_names.append("HuggingFace-DeepFake")
+            self.model_names.append("Primary-DeepFake-Detector")
+            self.model_types.append("huggingface")
+            print("✓ Loaded Primary DeepFake Detector")
         except Exception as e:
-            print(f"Failed to load HuggingFace model: {e}")
+            print(f"✗ Failed to load primary model: {e}")
         
-        # Load Model 2: EfficientNet-based (if available)
-        # For now, using the same model with different preprocessing as ensemble member
+        # Load Model 2: Alternative HuggingFace model (different architecture)
         try:
+            cache_dir = "./models_cache/huggingface"
             processor2 = AutoImageProcessor.from_pretrained(
-                "prithivMLmods/Deep-Fake-Detector-Model"
+                "dima806/deepfake_vs_real_image_detection",
+                cache_dir=cache_dir
             )
             model2 = AutoModelForImageClassification.from_pretrained(
-                "prithivMLmods/Deep-Fake-Detector-Model"
+                "dima806/deepfake_vs_real_image_detection",
+                cache_dir=cache_dir
             ).to(DEVICE)
             model2.eval()
             
             self.models.append(model2)
             self.processors.append(processor2)
-            self.model_names.append("EfficientNet-Variant")
+            self.model_names.append("Alternative-DeepFake-Detector")
+            self.model_types.append("huggingface")
+            print("✓ Loaded Alternative DeepFake Detector")
         except Exception as e:
-            print(f"Failed to load EfficientNet model: {e}")
+            print(f"✗ Failed to load alternative HF model: {e}")
         
-        # Model 3 could be added here (Xception, MesoNet, etc.)
-        # For production, download and load additional pretrained models
+        # Note: EfficientNet-B0 was removed because its classifier layer was untrained
+        # and only giving random predictions. We rely on the 2 specialized deepfake models above.
         
-        print(f"Loaded {len(self.models)} models for ensemble")
+        print(f"Ensemble initialized with {len(self.models)} diverse models")
     
     def predict_ensemble(self, image):
         """
@@ -80,9 +90,13 @@ class EnsembleDetector:
         confidences = []
         
         # Run each model
-        for i, (model, processor) in enumerate(zip(self.models, self.processors)):
+        for i, model in enumerate(self.models):
             try:
-                score, confidence = self._predict_single_model(image, model, processor)
+                if self.model_types[i] == "huggingface":
+                    score, confidence = self._predict_huggingface(image, model, self.processors[i])
+                else:
+                    score, confidence = 0.5, 0.0
+                
                 predictions.append(score)
                 confidences.append(confidence)
             except Exception as e:
@@ -108,15 +122,14 @@ class EnsembleDetector:
             'num_models': len(self.models)
         }
     
-    def _predict_single_model(self, image, model, processor):
-        """Run inference on a single model"""
+    def _predict_huggingface(self, image, model, processor):
+        """Run inference on HuggingFace model"""
         inputs = processor(images=image, return_tensors="pt").to(DEVICE)
         
         with torch.no_grad():
             outputs = model(**inputs)
             probs = torch.softmax(outputs.logits, dim=1)
         
-        # Assuming index 1 is fake, index 0 is real
         fake_prob = probs[0][1].item()
         confidence = max(probs[0]).item()
         
@@ -127,11 +140,9 @@ class EnsembleDetector:
         if len(predictions) == 0:
             return 0.5
         
-        # Simple weighted average by confidence
         total_weight = sum(confidences)
         
         if total_weight == 0:
-            # Fall back to simple average if no confidence scores
             return np.mean(predictions)
         
         weighted_sum = sum(p * c for p, c in zip(predictions, confidences))
@@ -144,7 +155,6 @@ class EnsembleDetector:
         if len(predictions) < 2:
             return "single_model"
         
-        # Check if all predictions are close
         pred_array = np.array(predictions)
         std = np.std(pred_array)
         

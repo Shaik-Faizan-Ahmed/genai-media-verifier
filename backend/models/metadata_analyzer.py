@@ -7,17 +7,10 @@ from utils.forensics_utils import apply_ela
 
 def analyze_metadata(image_path):
     """
-    Main entry point for metadata and file forensics analysis.
+    Enhanced metadata and file forensics analysis.
     
     Returns:
-        dict: {
-            'score': float (0-1, higher = more likely fake),
-            'exif_present': bool,
-            'exif_suspicious': bool,
-            'ela_score': float,
-            'editing_software_detected': str,
-            'compression_score': float
-        }
+        dict with comprehensive metadata scoring
     """
     try:
         exif_score, exif_data = analyze_exif_data(image_path)
@@ -25,7 +18,7 @@ def analyze_metadata(image_path):
         software = detect_editing_software(exif_data)
         compression_score = check_compression_consistency(image_path)
         
-        # Combine scores
+        # Enhanced combination
         final_score = (
             exif_score * 0.35 +
             ela_score * 0.40 +
@@ -55,8 +48,7 @@ def analyze_metadata(image_path):
 
 def analyze_exif_data(image_path):
     """
-    Extract and analyze EXIF metadata.
-    AI-generated images often lack proper EXIF or have suspicious patterns.
+    Enhanced EXIF analysis with pattern detection.
     """
     try:
         exif_dict = piexif.load(image_path)
@@ -64,95 +56,127 @@ def analyze_exif_data(image_path):
         exif_data = {}
         suspicious_score = 0.0
         
-        # Extract key EXIF fields
         if '0th' in exif_dict:
             ifd = exif_dict['0th']
             
-            # Camera make and model
             if piexif.ImageIFD.Make in ifd:
                 exif_data['camera_make'] = ifd[piexif.ImageIFD.Make].decode('utf-8', errors='ignore')
             
             if piexif.ImageIFD.Model in ifd:
                 exif_data['camera_model'] = ifd[piexif.ImageIFD.Model].decode('utf-8', errors='ignore')
             
-            # Software
             if piexif.ImageIFD.Software in ifd:
                 exif_data['software'] = ifd[piexif.ImageIFD.Software].decode('utf-8', errors='ignore')
             
-            # DateTime
             if piexif.ImageIFD.DateTime in ifd:
                 exif_data['datetime'] = ifd[piexif.ImageIFD.DateTime].decode('utf-8', errors='ignore')
         
-        # Check GPS data
         if 'GPS' in exif_dict and len(exif_dict['GPS']) > 0:
             exif_data['has_gps'] = True
         
-        # Check Exif IFD
         if 'Exif' in exif_dict:
             exif_ifd = exif_dict['Exif']
             
             if piexif.ExifIFD.DateTimeOriginal in exif_ifd:
                 exif_data['datetime_original'] = exif_ifd[piexif.ExifIFD.DateTimeOriginal].decode('utf-8', errors='ignore')
         
-        # Analyze for suspicious patterns
+        # ENHANCED SCORING LOGIC
         
-        # 1. No EXIF data at all = suspicious
+        # Complete absence of EXIF = very suspicious
         if len(exif_data) == 0:
-            suspicious_score = 0.8
+            suspicious_score = 0.85
         
-        # 2. No camera info but has software = likely edited/generated
+        # No camera info = likely AI or heavily edited
         elif 'camera_make' not in exif_data and 'camera_model' not in exif_data:
             if 'software' in exif_data:
-                suspicious_score = 0.7
+                software_lower = exif_data['software'].lower()
+                # Check for AI generation keywords (expanded list)
+                ai_keywords = [
+                    'stable diffusion', 'midjourney', 'dall-e', 'dalle', 'generative',
+                    'ai', 'gan', 'diffusion', 'automatic1111', 'novelai',
+                    'invoke', 'comfyui', 'playground', 'leonardo', 'ideogram',
+                    'flux', 'pixai', 'tensor.art', 'civitai', 'neural',
+                    'synthesized', 'generated', 'pytorch', 'tensorflow'
+                ]
+                
+                if any(keyword in software_lower for keyword in ai_keywords):
+                    suspicious_score = 0.95  # Very high - clear AI signature
+                elif any(editor in software_lower for editor in ['photoshop', 'gimp', 'paint', 'pixlr']):
+                    suspicious_score = 0.70  # High - edited
+                else:
+                    suspicious_score = 0.65  # Medium-high - unknown software
             else:
-                suspicious_score = 0.6
+                suspicious_score = 0.75  # High - no camera, no software info
         
-        # 3. Check for AI generation software signatures
-        elif 'software' in exif_data:
-            software_lower = exif_data['software'].lower()
-            ai_keywords = ['stable diffusion', 'midjourney', 'dall-e', 'generative', 'ai', 'gan']
+        # Has camera info - check plausibility
+        elif 'camera_make' in exif_data or 'camera_model' in exif_data:
+            # Check if camera info is plausible
+            make = exif_data.get('camera_make', '').lower()
+            model = exif_data.get('camera_model', '').lower()
             
-            if any(keyword in software_lower for keyword in ai_keywords):
-                suspicious_score = 0.9
-            elif any(editor in software_lower for editor in ['photoshop', 'gimp', 'paint']):
-                suspicious_score = 0.5
+            # Common camera manufacturers
+            known_makes = ['canon', 'nikon', 'sony', 'apple', 'samsung', 'google', 
+                          'huawei', 'xiaomi', 'oneplus', 'fujifilm', 'olympus', 'panasonic']
+            
+            if any(brand in make for brand in known_makes):
+                suspicious_score = 0.15  # Low - legitimate camera
             else:
-                suspicious_score = 0.2
+                suspicious_score = 0.40  # Medium - unknown camera brand
         
         else:
-            # Has camera info, looks legitimate
-            suspicious_score = 0.1
+            suspicious_score = 0.50  # Medium - partial data
         
         return float(suspicious_score), exif_data
     
     except Exception as e:
-        # No EXIF data or corrupted
-        return 0.7, {}
+        # No EXIF or corrupted
+        return 0.75, {}
 
 
 def perform_ela_analysis(image_path):
     """
-    Error Level Analysis - detects regions with different compression levels.
-    Manipulated areas show different error levels.
+    Enhanced Error Level Analysis.
     """
     try:
         ela_image = apply_ela(image_path, quality=95)
         
-        # Analyze ELA result
-        # High variance in ELA = inconsistent compression = likely edited
+        # Enhanced analysis
         ela_variance = np.var(ela_image)
         ela_mean = np.mean(ela_image)
+        ela_std = np.std(ela_image)
         
-        # Calculate regions with high error
-        threshold = ela_mean + (2 * np.std(ela_image))
+        # Calculate high-error regions more precisely
+        threshold = ela_mean + (2 * ela_std)
         high_error_pixels = np.sum(ela_image > threshold)
         total_pixels = ela_image.size
         
         high_error_ratio = high_error_pixels / total_pixels
         
+        # Check for regional inconsistencies
+        h, w = ela_image.shape[:2] if len(ela_image.shape) == 2 else ela_image.shape[:2]
+        
+        # Divide into 16 regions (4x4 grid)
+        region_variances = []
+        for i in range(4):
+            for j in range(4):
+                y_start = i * h // 4
+                y_end = (i + 1) * h // 4
+                x_start = j * w // 4
+                x_end = (j + 1) * w // 4
+                
+                region = ela_image[y_start:y_end, x_start:x_end]
+                region_variances.append(np.var(region))
+        
+        # High variance between regions = likely edited
+        regional_inconsistency = np.std(region_variances) / (np.mean(region_variances) + 1e-10)
+        
         # Combine metrics
-        # Higher variance and high error ratio = more suspicious
-        score = min((ela_variance * 10) + (high_error_ratio * 5), 1.0)
+        score = min(
+            (ela_variance * 8.0) + 
+            (high_error_ratio * 4.0) + 
+            (regional_inconsistency * 2.0),
+            1.0
+        )
         
         return float(score)
     
@@ -162,20 +186,24 @@ def perform_ela_analysis(image_path):
 
 def detect_editing_software(exif_data):
     """
-    Detect editing software from EXIF data.
+    Detect editing software with AI detection.
     """
     if 'software' in exif_data:
         software = exif_data['software'].lower()
         
-        # Check for known software
+        # AI generators
+        if any(ai in software for ai in ['stable diffusion', 'midjourney', 'dall-e', 'dalle']):
+            return 'AI Generator'
+        
+        # Common editors
         if 'photoshop' in software:
             return 'Adobe Photoshop'
         elif 'gimp' in software:
             return 'GIMP'
         elif 'paint' in software:
             return 'Paint'
-        elif any(ai in software for ai in ['stable diffusion', 'midjourney', 'dall-e']):
-            return 'AI Generator'
+        elif 'affinity' in software:
+            return 'Affinity Photo'
         else:
             return software
     
@@ -184,14 +212,12 @@ def detect_editing_software(exif_data):
 
 def check_compression_consistency(image_path):
     """
-    Check for consistent JPEG compression across the image.
-    Edited images show inconsistent compression.
+    Enhanced JPEG compression consistency check.
     """
     try:
         image = Image.open(image_path).convert('RGB')
         img_array = np.array(image)
         
-        # Divide image into blocks and check compression artifacts
         h, w = img_array.shape[:2]
         block_size = 64
         
@@ -201,21 +227,28 @@ def check_compression_consistency(image_path):
             for j in range(0, w - block_size, block_size):
                 block = img_array[i:i+block_size, j:j+block_size]
                 
-                # Calculate block variance (proxy for compression quality)
+                # Multiple metrics per block
                 block_var = np.var(block)
-                block_scores.append(block_var)
+                block_mean = np.mean(block)
+                block_scores.append((block_var, block_mean))
         
         if len(block_scores) == 0:
             return 0.5
         
-        # Check consistency across blocks
-        score_std = np.std(block_scores)
-        score_mean = np.mean(block_scores)
+        # Separate variance and mean
+        variances = [s[0] for s in block_scores]
+        means = [s[1] for s in block_scores]
         
-        # High standard deviation = inconsistent compression
-        inconsistency = score_std / (score_mean + 1e-10)
+        # Check consistency
+        var_std = np.std(variances)
+        var_mean = np.mean(variances)
+        mean_std = np.std(means)
         
-        score = min(inconsistency / 2.0, 1.0)
+        # High inconsistency = likely manipulated
+        var_inconsistency = var_std / (var_mean + 1e-10)
+        mean_inconsistency = mean_std / 50.0  # Normalize
+        
+        score = min((var_inconsistency * 0.7 + mean_inconsistency * 0.3) / 2.0, 1.0)
         
         return float(score)
     
@@ -226,22 +259,17 @@ def check_compression_consistency(image_path):
 def validate_camera_metadata(exif_data):
     """
     Validate camera metadata patterns.
-    Real cameras have consistent metadata patterns.
     """
     if not exif_data:
         return 0.8
     
-    # Check for essential camera fields
     has_make = 'camera_make' in exif_data
     has_model = 'camera_model' in exif_data
     has_datetime = 'datetime' in exif_data or 'datetime_original' in exif_data
     
     if has_make and has_model and has_datetime:
-        # Looks like real camera data
         return 0.1
     elif has_make or has_model:
-        # Partial data
         return 0.4
     else:
-        # Missing camera info
         return 0.7

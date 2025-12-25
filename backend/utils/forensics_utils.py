@@ -3,6 +3,14 @@ from PIL import Image
 import cv2
 
 
+def create_ring_mask(h, w, center_h, center_w, radius, thickness=10):
+    """Create ring mask for frequency analysis"""
+    y, x = np.ogrid[:h, :w]
+    dist = np.sqrt((x - center_w)**2 + (y - center_h)**2)
+    mask = ((dist >= radius) & (dist < radius + thickness)).astype(float)
+    return mask
+
+
 def convert_to_frequency_domain(image):
     """Convert image to frequency domain using FFT"""
     if isinstance(image, Image.Image):

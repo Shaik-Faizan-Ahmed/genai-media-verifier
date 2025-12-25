@@ -1,5 +1,6 @@
 import os
 from PIL import Image
+import numpy as np
 import config
 from models.ensemble_detector import predict_ensemble
 from models.frequency_analyzer import analyze_frequency_domain
@@ -67,8 +68,8 @@ def analyze_image_comprehensive(image_path):
                 print(f"Metadata analysis failed: {e}")
                 results['metadata_forensics'] = {'score': 0.5, 'error': str(e)}
         
-        # Combine all scores with DYNAMIC WEIGHTING
-        final_score, confidence = combine_scores_dynamic(results)
+        # Combine all scores with AGGRESSIVE DYNAMIC WEIGHTING
+        final_score, confidence = combine_scores_aggressive(results)
         results['final_score'] = final_score
         results['confidence'] = confidence
         results['risk_level'] = determine_risk_level(final_score)
@@ -84,10 +85,9 @@ def analyze_image_comprehensive(image_path):
         }
 
 
-def combine_scores_dynamic(results):
+def combine_scores_aggressive(results):
     """
-    Combine scores from all methods using DYNAMIC weighted ensemble.
-    Adjusts weights based on what information is available.
+    AGGRESSIVE dynamic weighting - heavily trusts neural networks when confident.
     
     Returns:
         tuple: (final_score, confidence)
@@ -98,85 +98,118 @@ def combine_scores_dynamic(results):
     active_weights = []
     confidences = []
     
-    # Neural Network - HIGHEST PRIORITY
-    if results['neural_network'] and 'score' in results['neural_network']:
-        nn_score = results['neural_network']['score']
+    # Neural Network - DOMINANT METHOD
+    nn_result = results.get('neural_network')
+    if nn_result and 'score' in nn_result:
+        nn_score = nn_result['score']
+        nn_confidence = nn_result.get('confidence', 0.8)
+        agreement = nn_result.get('model_agreement', 'unknown')
+        
         scores.append(nn_score)
-        active_weights.append(weights['neural'])
+        base_weight = weights['neural']
         
-        if 'confidence' in results['neural_network']:
-            confidences.append(results['neural_network']['confidence'])
-        else:
-            confidences.append(0.8)
+        # AGGRESSIVE BOOST: Very confident + unanimous = 2.5x weight
+        if nn_confidence > 0.95 and agreement == 'unanimous':
+            base_weight *= 2.5
+        # Strong confidence + strong agreement = 2.0x weight
+        elif nn_confidence > 0.93 and agreement in ['unanimous', 'strong_agreement']:
+            base_weight *= 2.0
+        # High confidence = 1.7x weight
+        elif nn_confidence > 0.90:
+            base_weight *= 1.7
+        # Medium-high confidence = 1.4x weight
+        elif nn_confidence > 0.85:
+            base_weight *= 1.4
         
-        # BOOST: If neural network is very confident (>0.9 or <0.1), increase its weight
-        if nn_score > 0.9 or nn_score < 0.1:
-            active_weights[-1] *= 1.5  # 50% boost for high confidence
+        active_weights.append(base_weight)
+        confidences.append(nn_confidence)
     
     # Frequency Domain
-    freq_reliable = False
-    if results['frequency_domain'] and 'score' in results['frequency_domain']:
-        freq_score = results['frequency_domain']['score']
+    freq_result = results.get('frequency_domain')
+    if freq_result and 'score' in freq_result:
+        freq_score = freq_result['score']
         scores.append(freq_score)
-        active_weights.append(weights['frequency'])
-        confidences.append(0.7)  # Default confidence for frequency
+        freq_weight = weights['frequency']
         
-        # Check if frequency analysis agrees with neural network
-        if results['neural_network'] and 'score' in results['neural_network']:
-            nn_score = results['neural_network']['score']
-            # If they agree (both high or both low), frequency is more reliable
-            if (nn_score > 0.7 and freq_score > 0.6) or (nn_score < 0.3 and freq_score < 0.4):
-                freq_reliable = True
-                active_weights[-1] *= 1.3  # Boost frequency when it agrees
+        # Boost if agrees with neural network
+        if nn_result and 'score' in nn_result:
+            nn_score = nn_result['score']
+            # Both say fake
+            if nn_score > 0.7 and freq_score > 0.6:
+                freq_weight *= 1.4
+            # Both say real
+            elif nn_score < 0.3 and freq_score < 0.4:
+                freq_weight *= 1.4
+        
+        active_weights.append(freq_weight)
+        confidences.append(0.7)
     
-    # Face Analysis - DYNAMIC based on detection quality
-    if results['facial_analysis'] and 'score' in results['facial_analysis']:
-        face_result = results['facial_analysis']
+    # Face Analysis - DYNAMIC based on detection
+    face_result = results.get('facial_analysis')
+    if face_result and 'score' in face_result:
         face_score = face_result['score']
         face_detected = face_result.get('face_detected', False)
         
         if not face_detected:
-            # No face detected - REDISTRIBUTE weight to neural network
-            if len(active_weights) > 0:
-                # Give face's weight to neural network
-                neural_boost = weights['face']
-                active_weights[0] += neural_boost  # Add to neural network weight
-            # Don't add face score to ensemble
+            # REDISTRIBUTE face weight to neural network
+            if config.FACE_NOT_DETECTED_REDISTRIBUTE and len(active_weights) > 0:
+                active_weights[0] += weights['face']
         else:
-            # Face detected - use it
             scores.append(face_score)
             face_weight = weights['face']
             
-            # Check quality indicators
-            has_anomalies = (
-                face_result.get('symmetry_anomaly', False) or
-                face_result.get('eye_anomaly', False) or
-                face_result.get('texture_anomaly', False)
-            )
+            # Enhanced weighting based on sub-scores
+            eye_score = face_result.get('eye_quality_score', 0.5)
+            texture_score = face_result.get('skin_texture_score', 0.5)
+            symmetry_score = face_result.get('symmetry_score', 0.5)
             
-            # If face analysis found anomalies AND neural network says fake, boost face weight
-            if has_anomalies and results['neural_network'] and results['neural_network'].get('score', 0) > 0.7:
-                face_weight *= 1.4
+            # If multiple strong anomalies detected
+            high_anomalies = sum([
+                eye_score > 0.7,
+                texture_score > 0.7,
+                symmetry_score > 0.65
+            ])
+            
+            if high_anomalies >= 2:
+                # Multiple anomalies = boost face weight
+                face_weight *= 1.5
+                
+                # If neural also says fake, boost even more
+                if nn_result and nn_result.get('score', 0) > 0.7:
+                    face_weight *= 1.3
             
             active_weights.append(face_weight)
             confidences.append(0.75)
     
     # Metadata
-    if results['metadata_forensics'] and 'score' in results['metadata_forensics']:
-        meta_result = results['metadata_forensics']
+    meta_result = results.get('metadata_forensics')
+    if meta_result and 'score' in meta_result:
         meta_score = meta_result['score']
         scores.append(meta_score)
         meta_weight = weights['metadata']
         
-        # Boost metadata if it found clear evidence
+        # Boost if clear evidence found
         if meta_result.get('exif_suspicious', False) or meta_result.get('ela_anomalies', False):
-            meta_weight *= 1.3
+            meta_weight *= 1.4
         
         active_weights.append(meta_weight)
         confidences.append(0.65)
     
     if len(scores) == 0:
         return 0.5, 0.0
+    
+    # CROSS-METHOD AGREEMENT BOOST
+    if len(scores) >= 3:
+        agreement_count = 0
+        for i in range(len(scores)):
+            for j in range(i+1, len(scores)):
+                if abs(scores[i] - scores[j]) < 0.15:
+                    agreement_count += 1
+        
+        # If 2+ pairs agree, boost all agreeing methods
+        if agreement_count >= 2:
+            for idx in range(len(active_weights)):
+                active_weights[idx] *= 1.2
     
     # Normalize weights
     total_weight = sum(active_weights)
@@ -188,11 +221,13 @@ def combine_scores_dynamic(results):
     # Calculate overall confidence
     avg_confidence = sum(confidences) / len(confidences) if confidences else 0.5
     
-    # Boost confidence if multiple methods agree
-    if len(scores) >= 3:
-        score_std = sum((s - final_score) ** 2 for s in scores) / len(scores)
-        if score_std < 0.05:  # Low variance = high agreement
-            avg_confidence = min(avg_confidence * 1.2, 1.0)
+    # Boost confidence if low variance (methods agree)
+    if len(scores) >= 2:
+        score_variance = np.var(scores)
+        if score_variance < 0.04:  # Very low variance
+            avg_confidence = min(avg_confidence * 1.3, 1.0)
+        elif score_variance < 0.08:  # Low variance
+            avg_confidence = min(avg_confidence * 1.15, 1.0)
     
     return final_score, avg_confidence
 
