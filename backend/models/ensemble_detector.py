@@ -39,7 +39,7 @@ class EnsembleDetector:
             
             self.models.append(model1)
             self.processors.append(processor1)
-            self.model_names.append("Primary-DeepFake-Detector")
+            self.model_names.append("prithivMLmods/Deep-Fake-Detector-Model")
             self.model_types.append("huggingface")
             print("✓ Loaded Primary DeepFake Detector (Siglip)")
         except Exception as e:
@@ -60,14 +60,11 @@ class EnsembleDetector:
             
             self.models.append(model2)
             self.processors.append(processor2)
-            self.model_names.append("Alternative-DeepFake-Detector")
+            self.model_names.append("dima806/deepfake_vs_real_image_detection")
             self.model_types.append("huggingface")
             print("✓ Loaded Alternative DeepFake Detector")
         except Exception as e:
             print(f"✗ Failed to load alternative HF model: {e}")
-        
-        # Note: EfficientNet-B0 was removed because its classifier layer was untrained
-        # and only giving random predictions. We rely on the 2 specialized deepfake models above.
         
         print(f"Ensemble initialized with {len(self.models)} diverse models")
     
