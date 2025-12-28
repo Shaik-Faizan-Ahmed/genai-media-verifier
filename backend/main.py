@@ -349,6 +349,26 @@ async def analyze_video_comprehensive_endpoint(file: UploadFile = File(...)):
                 "anomalies": physics.get('anomalies', [])
             }
         
+        # Layer 3: Specialized
+        response["layer_summaries"]["specialized"] = {}
+        
+        if results.get('layer3_boundary'):
+            boundary = results['layer3_boundary']
+            response["layer_summaries"]["specialized"]["boundary"] = {
+                "score": round(boundary.get('score', 0), 3),
+                "suspicious_transitions": len(boundary.get('suspicious_transitions', [])),
+                "quality_drops": boundary.get('quality_drops', 0)
+            }
+        
+        if results.get('layer3_compression'):
+            compression = results['layer3_compression']
+            response["layer_summaries"]["specialized"]["compression"] = {
+                "score": round(compression.get('score', 0), 3),
+                "mismatches": compression.get('compression_mismatches', 0),
+                "face_compression": round(compression.get('avg_face_compression', 0), 3),
+                "background_compression": round(compression.get('avg_background_compression', 0), 3)
+            }
+        
         return response
     
     except HTTPException:

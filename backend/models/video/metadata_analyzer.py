@@ -118,8 +118,43 @@ def analyze_video_metadata(video_path):
 def get_ffprobe_metadata(video_path):
     """Extract detailed metadata using ffprobe"""
     try:
-        ffmpeg_path = os.getenv("FFMPEG_PATH", "ffmpeg")
-        ffprobe_path = ffmpeg_path.replace("ffmpeg", "ffprobe")
+        # Try multiple ways to find ffprobe
+        ffprobe_path = None
+        
+        # Method 1: Check environment variable
+        ffmpeg_path = os.getenv("FFMPEG_PATH")
+        if ffmpeg_path:
+            ffprobe_path = ffmpeg_path.replace("ffmpeg", "ffprobe")
+        
+        # Method 2: Try common installation paths
+        if not ffprobe_path or not os.path.exists(ffprobe_path):
+            common_paths = [
+                "ffprobe",  # Try PATH
+                "ffprobe.exe",
+                r"C:\ffmpeg\bin\ffprobe.exe",
+                r"C:\Program Files\ffmpeg\bin\ffprobe.exe",
+                r"C:\Program Files (x86)\ffmpeg\bin\ffprobe.exe",
+            ]
+            
+            for path in common_paths:
+                try:
+                    # Test if this path works
+                    result = subprocess.run(
+                        [path, "-version"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                        shell=True  # Use shell to resolve PATH
+                    )
+                    if result.returncode == 0:
+                        ffprobe_path = path
+                        break
+                except:
+                    continue
+        
+        if not ffprobe_path:
+            print("FFprobe not found. Please install FFmpeg and add to PATH.")
+            return None
         
         cmd = [
             ffprobe_path,
@@ -130,7 +165,13 @@ def get_ffprobe_metadata(video_path):
             video_path
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            timeout=30,
+            shell=True  # Use shell to resolve PATH
+        )
         
         if result.returncode != 0:
             return None

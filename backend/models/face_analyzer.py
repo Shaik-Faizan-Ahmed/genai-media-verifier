@@ -425,9 +425,32 @@ class FaceAnalyzer:
                 avg_sharpness = np.mean(sharpness_scores)
                 avg_texture = np.mean(texture_scores)
                 
-                # Combine: low sharpness OR low texture variance = suspicious
-                sharpness_score = 1.0 - min(avg_sharpness / 100.0, 1.0)
-                texture_score = 1.0 - min(avg_texture / 500.0, 1.0)
+                # DEBUG: Print values to understand scoring
+                # print(f"DEBUG Eye Analysis: sharpness={avg_sharpness:.2f}, texture_var={avg_texture:.2f}")
+                
+                # FIXED SCORING: Adjust thresholds for modern high-quality images
+                # Sharpness: 0-50 (blurry) → 50-200 (normal) → 200+ (very sharp)
+                # Texture: 0-200 (smooth/fake) → 200-800 (normal) → 800+ (very detailed)
+                
+                # Normalize sharpness (blurry = suspicious)
+                if avg_sharpness < 50:  # Very blurry (suspicious)
+                    sharpness_score = 0.8
+                elif avg_sharpness < 100:  # Somewhat blurry
+                    sharpness_score = 0.5
+                elif avg_sharpness < 200:  # Normal sharpness
+                    sharpness_score = 0.2
+                else:  # Very sharp (real/high quality)
+                    sharpness_score = 0.0
+                
+                # Normalize texture variance (too smooth = suspicious)
+                if avg_texture < 100:  # Very smooth (AI-like, suspicious)
+                    texture_score = 0.8
+                elif avg_texture < 300:  # Somewhat smooth
+                    texture_score = 0.5
+                elif avg_texture < 600:  # Normal texture
+                    texture_score = 0.2
+                else:  # Very detailed (real)
+                    texture_score = 0.0
                 
                 # Weight them equally
                 combined_score = (sharpness_score * 0.5) + (texture_score * 0.5)

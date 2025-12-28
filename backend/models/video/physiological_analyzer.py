@@ -175,12 +175,19 @@ def detect_heartbeat_rppg(frame_paths, fps):
 def extract_face_regions(frame_paths):
     """Extract facial regions from frames"""
     try:
-        import mediapipe as mp
+        # Use OpenCV directly - more reliable for video processing
+        return extract_face_regions_opencv(frame_paths)
         
-        mp_face_detection = mp.solutions.face_detection
-        face_detection = mp_face_detection.FaceDetection(
-            model_selection=0,
-            min_detection_confidence=0.5
+    except Exception as e:
+        print(f"Face region extraction error: {e}")
+        return []
+
+
+def extract_face_regions_opencv(frame_paths):
+    """OpenCV fallback for face region extraction"""
+    try:
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
         )
         
         face_regions = []
@@ -191,30 +198,20 @@ def extract_face_regions(frame_paths):
                 face_regions.append(None)
                 continue
             
-            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            results = face_detection.process(rgb)
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(30, 30))
             
-            if results.detections:
-                detection = results.detections[0]
-                bbox = detection.location_data.relative_bounding_box
-                
-                h, w, _ = image.shape
-                x = int(bbox.xmin * w)
-                y = int(bbox.ymin * h)
-                width = int(bbox.width * w)
-                height = int(bbox.height * h)
-                
-                # Extract face ROI
-                face_roi = image[y:y+height, x:x+width]
+            if len(faces) > 0:
+                # Use largest face
+                x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+                face_roi = image[y:y+h, x:x+w]
                 face_regions.append(face_roi)
             else:
                 face_regions.append(None)
         
-        face_detection.close()
         return face_regions
         
     except Exception as e:
-        print(f"Face region extraction error: {e}")
         return []
 
 
@@ -224,72 +221,144 @@ def analyze_blink_pattern(frame_paths, fps):
     Natural blinking: 15-20 times per minute, duration 100-400ms
     """
     try:
-        import mediapipe as mp
-        
-        mp_face_mesh = mp.solutions.face_mesh
-        face_mesh = mp_face_mesh.FaceMesh(
-            static_image_mode=True,
-            max_num_faces=1,
-            min_detection_confidence=0.5
-        )
-        
-        # Track Eye Aspect Ratio (EAR) across frames
-        ear_values = []
-        
-        for frame_path in frame_paths:
-            image = cv2.imread(frame_path)
-            if image is None:
-                continue
+        # Try MediaPipe Tasks API with proper initialization
+        try:
+            from mediapipe.tasks import python
+            from mediapipe.tasks.python import vision
+            import mediapipe as mp
+            import os
             
-            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            results = face_mesh.process(rgb)
+            # Path to face landmarker model
+            model_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'models_cache')
+            face_landmarker_model = os.path.join(model_dir, 'face_landmarker.task')
             
-            if results.multi_face_landmarks:
-                landmarks = results.multi_face_landmarks[0]
-                ear = calculate_eye_aspect_ratio(landmarks)
-                ear_values.append(ear)
-            else:
-                ear_values.append(None)
+            if not os.path.exists(face_landmarker_model):
+                raise Exception("Face landmarker model not found")
+            
+            # Proper initialization matching face_analyzer.py
+            base_options = python.BaseOptions(
+                model_asset_path=face_landmarker_model,
+                delegate=python.BaseOptions.Delegate.CPU
+            )
+            
+            options = vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                running_mode=vision.RunningMode.IMAGE,
+                output_face_blendshapes=False,
+                output_facial_transformation_matrixes=False,
+                num_faces=1,
+                min_face_detection_confidence=0.5,
+                min_face_presence_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+            
+            landmarker = vision.FaceLandmarker.create_from_options(options)
+            
+            # Track Eye Aspect Ratio (EAR) across frames
+            ear_values = []
+            
+            for frame_path in frame_paths:
+                image = cv2.imread(frame_path)
+                if image is None:
+                    ear_values.append(None)
+                    continue
+                
+                rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
+                
+                try:
+                    detection_result = landmarker.detect(mp_image)
+                    
+                    if detection_result.face_landmarks:
+                        landmarks = detection_result.face_landmarks[0]
+                        ear = calculate_eye_aspect_ratio_tasks(landmarks)
+                        ear_values.append(ear)
+                    else:
+                        ear_values.append(None)
+                except Exception:
+                    ear_values.append(None)
+            
+            landmarker.close()
+            
+            if len([e for e in ear_values if e is not None]) < 10:
+                return {'natural': True, 'reason': 'Insufficient data'}
+            
+            # Detect blinks (EAR drops below threshold)
+            blink_threshold = 0.2
+            blinks = detect_blinks(ear_values, blink_threshold, fps)
+            
+            # Check naturalness
+            duration = len(frame_paths) / fps
+            expected_blinks_min = int(duration / 60 * 10)  # Min 10 per minute
+            expected_blinks_max = int(duration / 60 * 30)  # Max 30 per minute
+            
+            blink_count = len(blinks)
+            
+            # Check blink duration (should be 100-400ms = 3-12 frames at 30fps)
+            natural_durations = []
+            for blink in blinks:
+                duration_frames = blink['end'] - blink['start']
+                duration_ms = (duration_frames / fps) * 1000
+                if 50 < duration_ms < 500:
+                    natural_durations.append(True)
+                else:
+                    natural_durations.append(False)
+            
+            natural = (expected_blinks_min <= blink_count <= expected_blinks_max) and \
+                      (len(natural_durations) == 0 or np.mean(natural_durations) > 0.7)
+            
+            return {
+                'natural': natural,
+                'count': blink_count,
+                'expected_range': (expected_blinks_min, expected_blinks_max),
+                'avg_duration_ms': np.mean([b['duration_ms'] for b in blinks]) if blinks else 0
+            }
         
-        face_mesh.close()
-        
-        if len([e for e in ear_values if e is not None]) < 10:
-            return {'natural': True, 'reason': 'Insufficient data'}
-        
-        # Detect blinks (EAR drops below threshold)
-        blink_threshold = 0.2
-        blinks = detect_blinks(ear_values, blink_threshold, fps)
-        
-        # Check naturalness
-        duration = len(frame_paths) / fps
-        expected_blinks_min = int(duration / 60 * 10)  # Min 10 per minute
-        expected_blinks_max = int(duration / 60 * 30)  # Max 30 per minute
-        
-        blink_count = len(blinks)
-        
-        # Check blink duration (should be 100-400ms = 3-12 frames at 30fps)
-        natural_durations = []
-        for blink in blinks:
-            duration_frames = blink['end'] - blink['start']
-            duration_ms = (duration_frames / fps) * 1000
-            if 50 < duration_ms < 500:
-                natural_durations.append(True)
-            else:
-                natural_durations.append(False)
-        
-        natural = (expected_blinks_min <= blink_count <= expected_blinks_max) and \
-                  (len(natural_durations) == 0 or np.mean(natural_durations) > 0.7)
-        
-        return {
-            'natural': natural,
-            'count': blink_count,
-            'expected_range': (expected_blinks_min, expected_blinks_max),
-            'avg_duration_ms': np.mean([b['duration_ms'] for b in blinks]) if blinks else 0
-        }
+        except Exception as mp_error:
+            print(f"MediaPipe blink detection failed: {mp_error}")
+            # MediaPipe failed, return neutral
+            return {'natural': True, 'reason': f'Detection failed: {str(mp_error)}'}
         
     except Exception as e:
         print(f"Blink pattern analysis error: {e}")
         return {'natural': True, 'error': str(e)}
+
+
+def calculate_eye_aspect_ratio_tasks(face_landmarks):
+    """Calculate Eye Aspect Ratio (EAR) for Tasks API landmarks"""
+    # Left eye landmarks
+    left_eye = [33, 160, 158, 133, 153, 144]
+    # Right eye landmarks
+    right_eye = [362, 385, 387, 263, 373, 380]
+    
+    def eye_aspect_ratio(eye_points):
+        if any(idx >= len(face_landmarks) for idx in eye_points):
+            return 0.3  # Default value
+        
+        # Vertical distances
+        v1 = np.linalg.norm(np.array([face_landmarks[eye_points[1]].x,
+                                      face_landmarks[eye_points[1]].y]) -
+                           np.array([face_landmarks[eye_points[5]].x,
+                                    face_landmarks[eye_points[5]].y]))
+        v2 = np.linalg.norm(np.array([face_landmarks[eye_points[2]].x,
+                                      face_landmarks[eye_points[2]].y]) -
+                           np.array([face_landmarks[eye_points[4]].x,
+                                    face_landmarks[eye_points[4]].y]))
+        # Horizontal distance
+        h = np.linalg.norm(np.array([face_landmarks[eye_points[0]].x,
+                                     face_landmarks[eye_points[0]].y]) -
+                          np.array([face_landmarks[eye_points[3]].x,
+                                   face_landmarks[eye_points[3]].y]))
+        
+        if h == 0:
+            return 0.3
+        
+        return (v1 + v2) / (2.0 * h)
+    
+    left_ear = eye_aspect_ratio(left_eye)
+    right_ear = eye_aspect_ratio(right_eye)
+    
+    return (left_ear + right_ear) / 2.0
 
 
 def calculate_eye_aspect_ratio(face_landmarks):

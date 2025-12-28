@@ -80,67 +80,146 @@ def analyze_temporal_consistency(frame_paths, timestamps):
 def analyze_landmark_stability(frame_paths):
     """Analyze facial landmark stability across frames"""
     try:
-        import mediapipe as mp
+        # Try MediaPipe Tasks API (new way)
+        try:
+            from mediapipe.tasks import python
+            from mediapipe.tasks.python import vision
+            import mediapipe as mp
+            import os
+            
+            # Path to face landmarker model
+            model_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'models_cache')
+            face_landmarker_model = os.path.join(model_dir, 'face_landmarker.task')
+            
+            if not os.path.exists(face_landmarker_model):
+                raise Exception("Face landmarker model not found")
+            
+            # Proper initialization matching face_analyzer.py
+            base_options = python.BaseOptions(
+                model_asset_path=face_landmarker_model,
+                delegate=python.BaseOptions.Delegate.CPU
+            )
+            
+            options = vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                running_mode=vision.RunningMode.IMAGE,
+                output_face_blendshapes=False,
+                output_facial_transformation_matrixes=False,
+                num_faces=1,
+                min_face_detection_confidence=0.5,
+                min_face_presence_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+            
+            landmarker = vision.FaceLandmarker.create_from_options(options)
+            
+            landmarks_sequence = []
+            
+            for frame_path in frame_paths:
+                image = cv2.imread(frame_path)
+                if image is None:
+                    continue
+                
+                rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
+                
+                try:
+                    detection_result = landmarker.detect(mp_image)
+                except Exception:
+                    continue
+                
+                if detection_result.face_landmarks:
+                    face_landmarks = detection_result.face_landmarks[0]
+                    
+                    # Key landmark indices
+                    key_indices = [33, 133, 362, 263, 1, 61, 291, 199]  # Eyes, nose, mouth corners
+                    
+                    key_landmarks = []
+                    for idx in key_indices:
+                        if idx < len(face_landmarks):
+                            lm = face_landmarks[idx]
+                            key_landmarks.append([lm.x, lm.y, lm.z])
+                    
+                    if key_landmarks:
+                        landmarks_sequence.append(np.array(key_landmarks))
+            
+            landmarker.close()
+            
+            if len(landmarks_sequence) < 2:
+                return {'jitter_score': 0.5, 'has_faces': False}
+            
+            # Calculate jitter (movement between consecutive frames)
+            jitters = []
+            for i in range(len(landmarks_sequence) - 1):
+                diff = np.linalg.norm(landmarks_sequence[i] - landmarks_sequence[i+1])
+                jitters.append(diff)
+            
+            avg_jitter = np.mean(jitters)
+            max_jitter = np.max(jitters)
+            jitter_variance = np.var(jitters)
+            
+            # High jitter or variance = suspicious
+            jitter_score = min((avg_jitter * 50) + (jitter_variance * 100) + (max_jitter * 20), 1.0)
+            
+            return {
+                'jitter_score': float(jitter_score),
+                'avg_jitter': float(avg_jitter),
+                'max_jitter': float(max_jitter),
+                'has_faces': True
+            }
+            
+        except Exception as mp_error:
+            # MediaPipe failed, use OpenCV fallback
+            return analyze_landmark_stability_opencv(frame_paths)
         
-        mp_face_mesh = mp.solutions.face_mesh
-        face_mesh = mp_face_mesh.FaceMesh(
-            static_image_mode=True,
-            max_num_faces=1,
-            min_detection_confidence=0.5
-        )
-        
-        landmarks_sequence = []
+    except Exception as e:
+        print(f"Landmark stability error: {e}")
+        return {'jitter_score': 0.5, 'error': str(e)}
+
+
+def analyze_landmark_stability_opencv(frame_paths):
+    """OpenCV fallback for landmark stability"""
+    try:
+        # Use optical flow as proxy for facial movement
+        movements = []
+        prev_frame = None
         
         for frame_path in frame_paths:
             image = cv2.imread(frame_path)
             if image is None:
                 continue
             
-            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            results = face_mesh.process(rgb)
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             
-            if results.multi_face_landmarks:
-                # Extract key landmarks (eyes, nose, mouth)
-                face_landmarks = results.multi_face_landmarks[0]
+            if prev_frame is not None:
+                # Calculate optical flow
+                flow = cv2.calcOpticalFlowFarneback(
+                    prev_frame, gray, None,
+                    pyr_scale=0.5, levels=3, winsize=15,
+                    iterations=3, poly_n=5, poly_sigma=1.2, flags=0
+                )
                 
-                # Key landmark indices
-                key_indices = [33, 133, 362, 263, 1, 61, 291, 199]  # Eyes, nose, mouth corners
+                # Focus on center region (where face likely is)
+                h, w = flow.shape[:2]
+                center_flow = flow[h//4:3*h//4, w//4:3*w//4]
                 
-                key_landmarks = []
-                for idx in key_indices:
-                    lm = face_landmarks.landmark[idx]
-                    key_landmarks.append([lm.x, lm.y, lm.z])
-                
-                landmarks_sequence.append(np.array(key_landmarks))
+                magnitude = np.sqrt(center_flow[..., 0]**2 + center_flow[..., 1]**2)
+                movements.append(np.mean(magnitude))
+            
+            prev_frame = gray
         
-        face_mesh.close()
-        
-        if len(landmarks_sequence) < 2:
+        if len(movements) < 2:
             return {'jitter_score': 0.5, 'has_faces': False}
         
-        # Calculate jitter (movement between consecutive frames)
-        jitters = []
-        for i in range(len(landmarks_sequence) - 1):
-            diff = np.linalg.norm(landmarks_sequence[i] - landmarks_sequence[i+1])
-            jitters.append(diff)
-        
-        avg_jitter = np.mean(jitters)
-        max_jitter = np.max(jitters)
-        jitter_variance = np.var(jitters)
-        
-        # High jitter or variance = suspicious
-        # Real faces move smoothly, deepfakes have sudden jumps
-        jitter_score = min((avg_jitter * 50) + (jitter_variance * 100) + (max_jitter * 20), 1.0)
+        # Calculate jitter from movement variance
+        jitter_score = min(np.var(movements) / 10.0, 1.0)
         
         return {
             'jitter_score': float(jitter_score),
-            'avg_jitter': float(avg_jitter),
-            'max_jitter': float(max_jitter),
-            'has_faces': True
+            'has_faces': False
         }
         
     except Exception as e:
-        print(f"Landmark stability error: {e}")
         return {'jitter_score': 0.5, 'error': str(e)}
 
 

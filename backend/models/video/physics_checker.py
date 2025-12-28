@@ -8,6 +8,37 @@ import torch
 from PIL import Image
 
 
+# Global cache for MiDaS model (load once, reuse)
+_midas_model = None
+_midas_transform = None
+_midas_device = None
+
+
+def get_midas_model():
+    """Get cached MiDaS model (load once, reuse for all frames)"""
+    global _midas_model, _midas_transform, _midas_device
+    
+    if _midas_model is None:
+        try:
+            print("Loading MiDaS model (one-time initialization)...")
+            _midas_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            
+            # Use small MiDaS model for speed
+            _midas_model = torch.hub.load("intel-isl/MiDaS", "MiDaS_small", verbose=False)
+            _midas_model.to(_midas_device)
+            _midas_model.eval()
+            
+            midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms", verbose=False)
+            _midas_transform = midas_transforms.small_transform
+            
+            print(f"✓ MiDaS model loaded on {_midas_device}")
+        except Exception as e:
+            print(f"Failed to load MiDaS model: {e}")
+            return None, None, None
+    
+    return _midas_model, _midas_transform, _midas_device
+
+
 def analyze_physics_consistency(frame_paths):
     """
     Check physical consistency and plausibility
@@ -161,18 +192,13 @@ def analyze_depth_consistency(frame_paths):
 
 
 def estimate_depth_midas(frame_path):
-    """Estimate depth using MiDaS model"""
+    """Estimate depth using cached MiDaS model"""
     try:
-        # Load MiDaS model
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # Get cached model (loads once, reuses for all frames)
+        midas, transform, device = get_midas_model()
         
-        # Use small MiDaS model for speed
-        midas = torch.hub.load("intel-isl/MiDaS", "MiDaS_small")
-        midas.to(device)
-        midas.eval()
-        
-        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
-        transform = midas_transforms.small_transform
+        if midas is None:
+            return None
         
         # Load image
         img = cv2.imread(frame_path)

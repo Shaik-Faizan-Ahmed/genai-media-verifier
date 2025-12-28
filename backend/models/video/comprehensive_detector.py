@@ -26,6 +26,10 @@ from models.video.physiological_analyzer import analyze_physiological_signals
 # Layer 2D - Physics
 from models.video.physics_checker import analyze_physics_consistency
 
+# Layer 3 - Specialized
+from models.video.boundary_analyzer import analyze_boundaries, get_boundary_weighted_scores
+from models.video.compression_analyzer import analyze_region_compression
+
 
 def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
     """
@@ -47,6 +51,8 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
             'layer2b_audio': None,
             'layer2c_physiological': None,
             'layer2d_physics': None,
+            'layer3_boundary': None,
+            'layer3_compression': None,
             'final_score': 0.0,
             'risk_level': 'Unknown',
             'confidence': 0.0,
@@ -197,6 +203,41 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         print(f"  ✓ Lighting consistent: {physics_result.get('lighting_consistent', False)}")
         
         # =====================================================
+        # LAYER 3: SPECIALIZED DETECTION METHODS
+        # =====================================================
+        
+        # 3A: Enhanced Boundary Analysis
+        print("\nLAYER 3: Boundary/Transition Analysis...")
+        scene_boundaries = frame_data.get('scene_boundaries', [])
+        boundary_result = analyze_boundaries(frame_paths, scene_boundaries, timestamps)
+        results['layer3_boundary'] = boundary_result
+        
+        print(f"  ✓ Boundary score: {boundary_result.get('score', 0):.2f}")
+        print(f"  ✓ Suspicious transitions: {len(boundary_result.get('suspicious_transitions', []))}")
+        print(f"  ✓ Quality drops detected: {boundary_result.get('quality_drops', 0)}")
+        
+        # Apply boundary weighting to frame scores
+        if frame_results['ensemble_scores'] and scene_boundaries:
+            weighted_ensemble = get_boundary_weighted_scores(
+                frame_results['ensemble_scores'],
+                scene_boundaries,
+                weight_multiplier=2.0
+            )
+            frame_results['weighted_ensemble'] = weighted_ensemble
+            print(f"  ✓ Boundary-weighted ensemble: {weighted_ensemble:.2f}")
+        
+        # 3B: Per-Region Compression Analysis
+        print("\nLAYER 3: Per-Region Compression Analysis...")
+        compression_result = analyze_region_compression(frame_paths)
+        results['layer3_compression'] = compression_result
+        
+        print(f"  ✓ Compression score: {compression_result.get('score', 0):.2f}")
+        print(f"  ✓ Compression mismatches: {compression_result.get('compression_mismatches', 0)}")
+        if compression_result.get('avg_face_compression', 0) > 0:
+            print(f"  ✓ Face compression: {compression_result.get('avg_face_compression', 0):.2f}")
+            print(f"  ✓ Background compression: {compression_result.get('avg_background_compression', 0):.2f}")
+        
+        # =====================================================
         # INTELLIGENT SCORE FUSION
         # =====================================================
         print(f"\n{'='*60}")
@@ -232,13 +273,43 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
 def intelligent_fusion(results):
     """
     Intelligent multi-modal score fusion with dynamic weighting
+    AGGRESSIVE MODE: Catches obvious fakes
     """
     scores = []
     weights = []
     confidences = []
     breakdown = {}
     
-    # Layer 1: Metadata (low weight, but useful)
+    # =====================================================
+    # CRITICAL OVERRIDE RULES (CHECK FIRST)
+    # =====================================================
+    
+    frame_based = results.get('layer2a_frame_based')
+    temporal = results.get('layer2a_temporal')
+    physio = results.get('layer2c_physiological')
+    
+    # RULE 1: If ANY frame is >95% fake → AUTO HIGH RISK
+    if frame_based and frame_based.get('max_ensemble', 0) > 0.95:
+        return 0.95, 0.99, {'override': 'single_frame_very_fake', 'max_frame': frame_based['max_ensemble']}
+    
+    # RULE 2: No heartbeat + high identity shifts → AUTO HIGH RISK
+    if physio and not physio.get('heartbeat_detected', True):
+        identity_shifts = temporal.get('identity_shifts', 0) if temporal else 0
+        if identity_shifts > 20:
+            return 0.90, 0.98, {'override': 'no_heartbeat_identity_shifts', 'shifts': identity_shifts}
+    
+    # RULE 3: Max frame >0.90 + temporal issues → HIGH RISK
+    if frame_based and temporal:
+        max_frame = frame_based.get('max_ensemble', 0)
+        if max_frame > 0.90 and temporal.get('score', 0) > 0.5:
+            combined_score = (max_frame * 0.6) + (temporal['score'] * 0.4)
+            return combined_score, 0.97, {'override': 'frame_temporal_combo', 'max_frame': max_frame}
+    
+    # =====================================================
+    # NORMAL FUSION (if no overrides triggered)
+    # =====================================================
+    
+    # Layer 1: Metadata
     metadata = results.get('layer1_metadata')
     if metadata and 'score' in metadata:
         scores.append(metadata['score'])
@@ -246,43 +317,46 @@ def intelligent_fusion(results):
         confidences.append(0.6)
         breakdown['metadata'] = metadata['score']
     
-    # Layer 2A: Frame-Based (high weight - your existing strong models)
-    frame_based = results.get('layer2a_frame_based')
+    # Layer 2A: Frame-Based - USE MAX FRAME HEAVILY
     if frame_based:
-        # Use both average and max (worst frame matters)
         avg_score = (
-            frame_based.get('avg_ensemble', 0.5) * 0.6 +
+            frame_based.get('avg_ensemble', 0.5) * 0.5 +
             frame_based.get('avg_face', 0.5) * 0.25 +
-            frame_based.get('avg_frequency', 0.5) * 0.15
+            frame_based.get('avg_frequency', 0.5) * 0.25
         )
         max_score = frame_based.get('max_ensemble', 0.5)
         
-        # Combine avg and max
-        frame_score = (avg_score * 0.7) + (max_score * 0.3)
+        # AGGRESSIVE: Weight max frame heavily (60%)
+        frame_score = (avg_score * 0.4) + (max_score * 0.6)
         
         scores.append(frame_score)
-        weights.append(0.30)  # High weight
-        confidences.append(0.85)
+        weights.append(0.35)  # Increased weight
+        confidences.append(0.90)  # High confidence
         breakdown['frame_based'] = frame_score
     
-    # Layer 2A: Temporal Consistency (very important for video)
-    temporal = results.get('layer2a_temporal')
+    # Layer 2A: Temporal Consistency
     if temporal and 'score' in temporal:
-        scores.append(temporal['score'])
-        weights.append(0.20)  # High weight
-        confidences.append(0.75)
-        breakdown['temporal'] = temporal['score']
+        temp_score = temporal['score']
+        
+        # BOOST if identity shifts detected
+        if temporal.get('identity_shifts', 0) > 10:
+            temp_score = min(temp_score * 1.5, 1.0)
+        
+        scores.append(temp_score)
+        weights.append(0.20)
+        confidences.append(0.80)
+        breakdown['temporal'] = temp_score
     
     # Layer 2A: 3D Video Model
     video_3d = results.get('layer2a_3d_video')
     if video_3d and 'score' in video_3d:
         model_confidence = video_3d.get('confidence', 0.5)
         scores.append(video_3d['score'])
-        weights.append(0.15)
+        weights.append(0.10)  # Lower weight (not specifically trained)
         confidences.append(model_confidence)
         breakdown['3d_video'] = video_3d['score']
     
-    # Layer 2B: Audio (if present)
+    # Layer 2B: Audio
     audio = results.get('layer2b_audio')
     if audio and audio.get('has_audio', False) and 'score' in audio:
         scores.append(audio['score'])
@@ -290,23 +364,62 @@ def intelligent_fusion(results):
         confidences.append(0.70)
         breakdown['audio'] = audio['score']
     
-    # Layer 2C: Physiological (hard to fake - high weight when detected)
-    physio = results.get('layer2c_physiological')
+    # Layer 2C: Physiological - CRITICAL SIGNAL
     if physio and 'score' in physio:
-        # Higher weight if no heartbeat detected
-        physio_weight = 0.20 if not physio.get('heartbeat_detected', True) else 0.10
-        scores.append(physio['score'])
+        physio_score = physio['score']
+        
+        # AGGRESSIVE: No heartbeat = HUGE penalty
+        if not physio.get('heartbeat_detected', True):
+            physio_score = min(physio_score * 2.0, 1.0)
+            physio_weight = 0.25  # Massive weight
+        else:
+            physio_weight = 0.10
+        
+        scores.append(physio_score)
         weights.append(physio_weight)
-        confidences.append(0.80)
-        breakdown['physiological'] = physio['score']
+        confidences.append(0.85)
+        breakdown['physiological'] = physio_score
     
     # Layer 2D: Physics
     physics = results.get('layer2d_physics')
     if physics and 'score' in physics:
         scores.append(physics['score'])
-        weights.append(0.10)
+        weights.append(0.08)
         confidences.append(0.65)
         breakdown['physics'] = physics['score']
+    
+    # Layer 3: Boundary Analysis
+    boundary = results.get('layer3_boundary')
+    if boundary and 'score' in boundary:
+        # Use boundary-weighted ensemble if available
+        if frame_based and frame_based.get('weighted_ensemble'):
+            weighted_score = frame_based['weighted_ensemble']
+            # Boost frame_based score if boundaries are suspicious
+            if 'frame_based' in breakdown and boundary['score'] > 0.4:
+                idx = list(breakdown.keys()).index('frame_based')
+                scores[idx] = (scores[idx] * 0.7) + (weighted_score * 0.3)
+        
+        scores.append(boundary['score'])
+        weights.append(0.08)
+        confidences.append(0.70)
+        breakdown['boundary'] = boundary['score']
+    
+    # Layer 3: Compression Analysis
+    compression = results.get('layer3_compression')
+    if compression and 'score' in compression:
+        comp_score = compression['score']
+        
+        # BOOST if compression mismatches found (face-swap indicator)
+        if compression.get('compression_mismatches', 0) > 0:
+            comp_score = min(comp_score * 2.0, 1.0)
+            comp_weight = 0.15  # Higher weight
+        else:
+            comp_weight = 0.08
+        
+        scores.append(comp_score)
+        weights.append(comp_weight)
+        confidences.append(0.75)
+        breakdown['compression'] = comp_score
     
     # Normalize weights
     total_weight = sum(weights)
@@ -328,6 +441,11 @@ def intelligent_fusion(results):
             avg_confidence = min(avg_confidence * 1.3, 1.0)
         elif score_variance < 0.1:  # Moderate agreement
             avg_confidence = min(avg_confidence * 1.15, 1.0)
+    
+    # AGGRESSIVE BOOST: If multiple methods show high scores
+    high_score_count = sum(1 for s in scores if s > 0.6)
+    if high_score_count >= 3:
+        final_score = min(final_score * 1.2, 1.0)
     
     return float(final_score), float(avg_confidence), breakdown
 

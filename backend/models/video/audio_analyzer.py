@@ -285,51 +285,69 @@ def analyze_lip_sync(video_path, audio_path):
 def extract_mouth_movements(video_path):
     """Extract mouth movement signal from video"""
     try:
-        import mediapipe as mp
+        # Use OpenCV-based mouth detection instead of MediaPipe
+        # More reliable for video processing
+        return extract_mouth_movements_opencv(video_path)
         
-        mp_face_mesh = mp.solutions.face_mesh
-        face_mesh = mp_face_mesh.FaceMesh(
-            static_image_mode=False,
-            max_num_faces=1,
-            min_detection_confidence=0.5
+    except Exception as e:
+        print(f"Mouth movement extraction error: {e}")
+        return []
+
+
+def extract_mouth_movements_opencv(video_path):
+    """Extract mouth movements using OpenCV"""
+    try:
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        )
+        mouth_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_mcs_mouth.xml'
         )
         
         cap = cv2.VideoCapture(video_path)
         
         mouth_openness = []
         
-        # Mouth landmarks (upper and lower lip)
-        upper_lip = 13
-        lower_lip = 14
-        
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
             
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = face_mesh.process(rgb)
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
-            if results.multi_face_landmarks:
-                landmarks = results.multi_face_landmarks[0]
+            # Detect faces
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(100, 100))
+            
+            if len(faces) > 0:
+                # Use largest face
+                x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
                 
-                # Calculate mouth openness
-                upper = landmarks.landmark[upper_lip]
-                lower = landmarks.landmark[lower_lip]
+                # Look for mouth in lower half of face
+                face_roi = gray[y+h//2:y+h, x:x+w]
                 
-                openness = abs(upper.y - lower.y)
-                mouth_openness.append(openness)
+                # Detect mouth
+                mouths = mouth_cascade.detectMultiScale(face_roi, 1.3, 5, minSize=(30, 20))
+                
+                if len(mouths) > 0:
+                    # Use largest mouth detection
+                    mx, my, mw, mh = max(mouths, key=lambda m: m[2] * m[3])
+                    # Height of mouth region as proxy for openness
+                    openness = mh / h  # Normalize by face height
+                    mouth_openness.append(openness)
+                else:
+                    mouth_openness.append(0)
             else:
                 mouth_openness.append(0)
         
         cap.release()
-        face_mesh.close()
         
         return np.array(mouth_openness)
         
     except Exception as e:
-        print(f"Mouth movement extraction error: {e}")
+        print(f"OpenCV mouth movement extraction error: {e}")
         return []
+
+
 
 
 def check_audio_consistency(audio_path):

@@ -169,34 +169,12 @@ def detect_scene_changes_fallback(video_path, fps, total_frames):
 def detect_face_frames(frame_paths):
     """Detect which frames contain faces"""
     try:
-        import mediapipe as mp
-        
-        mp_face_detection = mp.solutions.face_detection
-        face_detection = mp_face_detection.FaceDetection(
-            model_selection=0,
-            min_detection_confidence=0.5
-        )
-        
-        face_frames = []
-        
-        for frame_path in frame_paths:
-            image = cv2.imread(frame_path)
-            if image is None:
-                continue
-            
-            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            results = face_detection.detect(rgb_image)
-            
-            if results.detections:
-                face_frames.append(frame_path)
-        
-        face_detection.close()
-        return face_frames
+        # Use OpenCV directly - more reliable for batch processing
+        return detect_face_frames_opencv(frame_paths)
         
     except Exception as e:
         print(f"Face detection in frames error: {e}")
-        # Fallback: use OpenCV Haar Cascade
-        return detect_face_frames_opencv(frame_paths)
+        return []
 
 
 def detect_face_frames_opencv(frame_paths):
