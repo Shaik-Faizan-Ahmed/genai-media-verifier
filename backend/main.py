@@ -2,13 +2,18 @@ from services.video_analyzer import analyze_video
 from services.report_generator import generate_report, generate_comprehensive_report
 from services.comprehensive_analyzer import analyze_image_comprehensive
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import shutil
+import asyncio
+import json
+from queue import Queue
+import threading
 
 from utils.image_utils import preprocess_image
 from models.deepfake_detector import predict_image
+from models.progress_tracker import get_progress_tracker, reset_progress_tracker
 import config
 
 
@@ -133,10 +138,16 @@ async def analyze_image_comprehensive_endpoint(file: UploadFile = File(...)):
     try:
         validate_file(file, config.ALLOWED_IMAGE_EXTENSIONS)
         
+        # Reset progress tracker for new analysis
+        reset_progress_tracker()
+        tracker = get_progress_tracker()
+        
         path = os.path.join(UPLOAD_DIR, file.filename)
         
         with open(path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
+        tracker.update("📁 File uploaded successfully")
         
         # Run comprehensive analysis
         results = analyze_image_comprehensive(path)
@@ -168,12 +179,51 @@ async def analyze_image_comprehensive_endpoint(file: UploadFile = File(...)):
                 "metadata_forensics": results.get('metadata_forensics')
             }
         
+        tracker.update("✅ Complete!")
+        
         return response
     
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Comprehensive analysis failed: {str(e)}")
+
+
+@app.get("/analyze/progress")
+async def get_analysis_progress():
+    """
+    Server-Sent Events endpoint for real-time progress updates
+    """
+    async def event_generator():
+        tracker = get_progress_tracker()
+        message_queue = Queue()
+        
+        def callback(message):
+            message_queue.put(message)
+        
+        tracker.add_callback(callback)
+        
+        try:
+            while True:
+                # Check for new messages
+                if not message_queue.empty():
+                    message = message_queue.get()
+                    yield f"data: {json.dumps({'message': message})}\n\n"
+                else:
+                    # Send heartbeat to keep connection alive
+                    await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            # Client disconnected
+            pass
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
 
 
 @app.post("/analyze/video")

@@ -5,6 +5,7 @@ Combines all Layer 1 and Layer 2 analyses
 import os
 from PIL import Image
 import numpy as np
+from models.progress_tracker import get_progress_tracker
 
 
 def convert_numpy_types(obj):
@@ -58,10 +59,14 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
     Returns:
         dict: Complete analysis results with multi-modal scoring
     """
+    tracker = get_progress_tracker()
+    
     try:
         print(f"\n{'='*60}")
         print(f"HYBRID VIDEO DEEPFAKE DETECTION")
         print(f"{'='*60}\n")
+        tracker.update("\n🎬 Starting comprehensive video analysis...")
+        tracker.update(f"📹 Video: {os.path.basename(video_path)}")
         
         results = {
             'layer1_metadata': None,
@@ -83,12 +88,15 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         # LAYER 1: Pre-Analysis (Metadata & Quick Checks)
         # =====================================================
         print("LAYER 1: Metadata Analysis...")
+        tracker.update("\n📊 LAYER 1: Analyzing video metadata...")
         metadata_result = analyze_video_metadata(video_path)
         results['layer1_metadata'] = metadata_result
         
         has_audio = metadata_result.get('has_audio', False)
         print(f"  ✓ Metadata score: {metadata_result.get('score', 0):.2f}")
         print(f"  ✓ Audio present: {has_audio}")
+        tracker.update(f"  ✓ Metadata score: {metadata_result.get('score', 0):.2f}")
+        tracker.update(f"  ✓ Audio present: {'Yes' if has_audio else 'No'}")
         
         # =====================================================
         # LAYER 2: Content-Based Multi-Modal Analysis
@@ -96,9 +104,11 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         
         # Smart frame extraction
         print("\nLAYER 2A: Extracting frames intelligently...")
+        tracker.update("\n🎞️ LAYER 2A: Extracting key frames from video...")
         frame_data = smart_frame_extraction(video_path, output_dir, target_frames=50)
         
         if not frame_data or len(frame_data['frames']) == 0:
+            tracker.update("❌ Failed to extract frames")
             return {
                 'error': 'Failed to extract frames',
                 'final_score': 0.5
@@ -108,11 +118,14 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         timestamps = frame_data['timestamps']
         print(f"  ✓ Extracted {len(frame_paths)} frames")
         print(f"  ✓ Frames with faces: {len(frame_data.get('face_frames', []))}")
+        tracker.update(f"  ✓ Extracted {len(frame_paths)} frames")
+        tracker.update(f"  ✓ Found {len(frame_data.get('face_frames', []))} frames with faces")
         
         # =====================================================
         # LAYER 2A: VISUAL STREAM - Frame-Based Analysis
         # =====================================================
         print("\nLAYER 2A (Option 1): Frame-Based Analysis...")
+        tracker.update("\n🤖 Analyzing frames with AI models...")
         
         frame_results = {
             'ensemble_scores': [],
@@ -142,6 +155,7 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
                 
                 if (idx + 1) % 10 == 0:
                     print(f"  ✓ Processed {idx + 1}/{len(frame_paths)} frames")
+                    tracker.update(f"  ✓ Processed {idx + 1}/{len(frame_paths)} frames")
                     
             except Exception as e:
                 print(f"  ✗ Frame {idx} error: {e}")
@@ -162,47 +176,58 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         
         print(f"  ✓ Avg Ensemble Score: {frame_results['avg_ensemble']:.2f}")
         print(f"  ✓ Max Ensemble Score: {frame_results.get('max_ensemble', 0):.2f}")
+        tracker.update(f"  ✓ Average score: {frame_results['avg_ensemble']:.2f}")
+        tracker.update(f"  ✓ Highest frame score: {frame_results.get('max_ensemble', 0):.2f}")
         
         # =====================================================
         # LAYER 2A: VISUAL STREAM - Temporal Analysis
         # =====================================================
         print("\nLAYER 2A: Temporal Consistency Analysis...")
+        tracker.update("\n⏱️ Analyzing temporal consistency...")
         temporal_result = analyze_temporal_consistency(frame_paths, timestamps)
         results['layer2a_temporal'] = temporal_result
         
         print(f"  ✓ Temporal score: {temporal_result.get('score', 0):.2f}")
         print(f"  ✓ Identity shifts: {temporal_result.get('identity_shifts', 0)}")
         print(f"  ✓ Motion smoothness: {temporal_result.get('motion_smoothness', 0):.2f}")
+        tracker.update(f"  ✓ Temporal score: {temporal_result.get('score', 0):.2f}")
+        tracker.update(f"  ✓ Identity shifts detected: {temporal_result.get('identity_shifts', 0)}")
         
         # =====================================================
         # LAYER 2A: VISUAL STREAM - 3D Video Model
         # =====================================================
         print("\nLAYER 2A (Option 2): 3D Video Model Analysis...")
+        tracker.update("\n🎥 Running 3D video model analysis...")
         video_3d_result = analyze_with_3d_model(video_path, clip_duration=2.0)
         results['layer2a_3d_video'] = video_3d_result
         
         print(f"  ✓ 3D Model score: {video_3d_result.get('score', 0):.2f}")
         print(f"  ✓ Method: {video_3d_result.get('method', 'unknown')}")
+        tracker.update(f"  ✓ 3D Model score: {video_3d_result.get('score', 0):.2f}")
         
         # =====================================================
         # LAYER 2B: AUDIO STREAM
         # =====================================================
         if has_audio:
             print("\nLAYER 2B: Audio Analysis...")
+            tracker.update("\n🔊 LAYER 2B: Analyzing audio stream...")
             audio_result = analyze_audio_stream(video_path)
             results['layer2b_audio'] = audio_result
             
             print(f"  ✓ Audio score: {audio_result.get('score', 0):.2f}")
             print(f"  ✓ Voice deepfake: {audio_result.get('voice_deepfake_score', 0):.2f}")
             print(f"  ✓ Lip-sync: {audio_result.get('lip_sync_score', 0):.2f}")
+            tracker.update(f"  ✓ Audio score: {audio_result.get('score', 0):.2f}")
         else:
             print("\nLAYER 2B: No audio detected, skipping audio analysis")
+            tracker.update("\n🔇 LAYER 2B: No audio detected, skipping...")
             results['layer2b_audio'] = {'has_audio': False, 'score': 0.0}
         
         # =====================================================
         # LAYER 2C: PHYSIOLOGICAL SIGNALS
         # =====================================================
         print("\nLAYER 2C: Physiological Signal Analysis...")
+        tracker.update("\n💓 LAYER 2C: Analyzing physiological signals...")
         
         fps = metadata_result.get('metadata', {}).get('fps', 30)
         physio_result = analyze_physiological_signals(frame_paths, fps=fps)
@@ -211,16 +236,20 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         print(f"  ✓ Physiological score: {physio_result.get('score', 0):.2f}")
         print(f"  ✓ Heartbeat detected: {physio_result.get('heartbeat_detected', False)}")
         print(f"  ✓ Natural blink pattern: {physio_result.get('blink_pattern_natural', False)}")
+        tracker.update(f"  ✓ Heartbeat detected: {'Yes' if physio_result.get('heartbeat_detected', False) else 'No'}")
+        tracker.update(f"  ✓ Natural blink pattern: {'Yes' if physio_result.get('blink_pattern_natural', False) else 'No'}")
         
         # =====================================================
         # LAYER 2D: PHYSICS & CONSISTENCY
         # =====================================================
         print("\nLAYER 2D: Physics Consistency Analysis...")
+        tracker.update("\n🔬 LAYER 2D: Checking physics consistency...")
         physics_result = analyze_physics_consistency(frame_paths)
         results['layer2d_physics'] = physics_result
         
         print(f"  ✓ Physics score: {physics_result.get('score', 0):.2f}")
         print(f"  ✓ Lighting consistent: {physics_result.get('lighting_consistent', False)}")
+        tracker.update(f"  ✓ Physics score: {physics_result.get('score', 0):.2f}")
         
         # =====================================================
         # LAYER 3: SPECIALIZED DETECTION METHODS
@@ -228,6 +257,7 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         
         # 3A: Enhanced Boundary Analysis
         print("\nLAYER 3: Boundary/Transition Analysis...")
+        tracker.update("\n🎬 LAYER 3: Analyzing scene boundaries...")
         scene_boundaries = frame_data.get('scene_boundaries', [])
         boundary_result = analyze_boundaries(frame_paths, scene_boundaries, timestamps)
         results['layer3_boundary'] = boundary_result
@@ -235,6 +265,7 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         print(f"  ✓ Boundary score: {boundary_result.get('score', 0):.2f}")
         print(f"  ✓ Suspicious transitions: {len(boundary_result.get('suspicious_transitions', []))}")
         print(f"  ✓ Quality drops detected: {boundary_result.get('quality_drops', 0)}")
+        tracker.update(f"  ✓ Suspicious transitions: {len(boundary_result.get('suspicious_transitions', []))}")
         
         # Apply boundary weighting to frame scores
         if frame_results['ensemble_scores'] and scene_boundaries:
@@ -248,11 +279,13 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         
         # 3B: Per-Region Compression Analysis
         print("\nLAYER 3: Per-Region Compression Analysis...")
+        tracker.update("\n🔍 LAYER 3: Analyzing compression artifacts...")
         compression_result = analyze_region_compression(frame_paths)
         results['layer3_compression'] = compression_result
         
         print(f"  ✓ Compression score: {compression_result.get('score', 0):.2f}")
         print(f"  ✓ Compression mismatches: {compression_result.get('compression_mismatches', 0)}")
+        tracker.update(f"  ✓ Compression mismatches: {compression_result.get('compression_mismatches', 0)}")
         if compression_result.get('avg_face_compression', 0) > 0:
             print(f"  ✓ Face compression: {compression_result.get('avg_face_compression', 0):.2f}")
             print(f"  ✓ Background compression: {compression_result.get('avg_background_compression', 0):.2f}")
@@ -263,6 +296,7 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         print(f"\n{'='*60}")
         print("SCORE FUSION")
         print(f"{'='*60}\n")
+        tracker.update("\n📊 Combining all analysis results...")
         
         final_score, confidence, breakdown = intelligent_fusion(results)
         
@@ -274,6 +308,10 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         print(f"  FINAL SCORE: {final_score:.2f}")
         print(f"  CONFIDENCE: {confidence:.2f}")
         print(f"  RISK LEVEL: {results['risk_level']}")
+        tracker.update(f"\n✅ Analysis complete!")
+        tracker.update(f"  Final Score: {final_score:.2f} ({'FAKE' if final_score > 0.5 else 'REAL'})")
+        tracker.update(f"  Confidence: {confidence:.2f}")
+        tracker.update(f"  Risk Level: {results['risk_level']}")
         
         print(f"\n{'='*60}\n")
         
@@ -283,7 +321,9 @@ def analyze_video_comprehensive(video_path, output_dir="temp_frames"):
         return results
         
     except Exception as e:
+        tracker = get_progress_tracker()
         print(f"Comprehensive video analysis error: {e}")
+        tracker.update(f"❌ Error: {str(e)}")
         import traceback
         traceback.print_exc()
         return {

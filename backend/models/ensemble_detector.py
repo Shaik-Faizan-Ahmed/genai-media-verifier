@@ -7,6 +7,7 @@ except ImportError:
     SIGLIP_AVAILABLE = False
 from PIL import Image
 import numpy as np
+from models.progress_tracker import get_progress_tracker
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -41,9 +42,8 @@ class EnsembleDetector:
             self.processors.append(processor1)
             self.model_names.append("prithivMLmods/Deep-Fake-Detector-Model")
             self.model_types.append("huggingface")
-            print("✓ Loaded Primary DeepFake Detector (Siglip)")
         except Exception as e:
-            print(f"✗ Failed to load primary model: {e}")
+            pass
         
         # Load Model 2: Alternative HuggingFace model (different architecture)
         try:
@@ -62,11 +62,8 @@ class EnsembleDetector:
             self.processors.append(processor2)
             self.model_names.append("dima806/deepfake_vs_real_image_detection")
             self.model_types.append("huggingface")
-            print("✓ Loaded Alternative DeepFake Detector")
         except Exception as e:
-            print(f"✗ Failed to load alternative HF model: {e}")
-        
-        print(f"Ensemble initialized with {len(self.models)} diverse models")
+            pass
     
     def predict_ensemble(self, image):
         """
@@ -80,7 +77,12 @@ class EnsembleDetector:
                 'model_agreement': str
             }
         """
+        tracker = get_progress_tracker()
+        
+        tracker.update("🔍 Starting deepfake detection analysis...")
+        
         if len(self.models) == 0:
+            tracker.update("❌ ERROR: No models available")
             return {
                 'score': 0.5,
                 'confidence': 0.0,
@@ -89,37 +91,60 @@ class EnsembleDetector:
                 'error': 'No models loaded'
             }
         
+        tracker.update(f"📊 Loaded {len(self.models)} AI models for analysis")
+        tracker.update(f"🖥️ Using device: {DEVICE.upper()}")
+        
         if isinstance(image, str):
+            tracker.update("📂 Loading image file...")
             image = Image.open(image).convert('RGB')
         elif isinstance(image, Image.Image):
+            tracker.update("🖼️ Processing image...")
             image = image.convert('RGB')
+        
+        tracker.update(f"✓ Image loaded: {image.size[0]}x{image.size[1]} pixels")
         
         predictions = []
         confidences = []
         
         # Run each model
+        tracker.update("\n🤖 Running neural network predictions...")
         for i, model in enumerate(self.models):
             try:
+                model_short_name = self.model_names[i].split('/')[-1]
+                tracker.update(f"  [{i+1}/{len(self.models)}] {model_short_name}")
+                tracker.update(f"      → Preprocessing image...")
+                
                 if self.model_types[i] == "huggingface":
-                    score, confidence = self._predict_huggingface(image, model, self.processors[i])
+                    score, confidence = self._predict_huggingface(image, model, self.processors[i], i+1, len(self.models))
                 else:
                     score, confidence = 0.5, 0.0
                 
                 predictions.append(score)
                 confidences.append(confidence)
+                
+                result = "FAKE" if score > 0.5 else "REAL"
+                tracker.update(f"      ✓ Prediction: {result} (score: {score:.3f}, confidence: {confidence:.3f})")
             except Exception as e:
-                print(f"Model {self.model_names[i]} failed: {e}")
+                tracker.update(f"      ❌ Model failed: {e}")
                 predictions.append(0.5)
                 confidences.append(0.0)
         
         # Weighted voting based on confidence
+        tracker.update("\n🔄 Combining predictions...")
+        tracker.update("   → Using weighted voting based on confidence scores...")
         final_score = self._weighted_voting(predictions, confidences)
         
         # Calculate agreement
+        tracker.update("   → Calculating model agreement...")
         agreement = self._calculate_agreement(predictions)
         
         # Calculate overall confidence
         avg_confidence = np.mean(confidences) if confidences else 0.0
+        
+        tracker.update("\n📋 Analysis complete!")
+        tracker.update(f"   Final Score: {final_score:.3f} ({'FAKE' if final_score > 0.5 else 'REAL'})")
+        tracker.update(f"   Average Confidence: {avg_confidence:.3f}")
+        tracker.update(f"   Model Agreement: {agreement.replace('_', ' ').title()}")
         
         return {
             'score': float(final_score),
@@ -130,8 +155,10 @@ class EnsembleDetector:
             'num_models': len(self.models)
         }
     
-    def _predict_huggingface(self, image, model, processor):
+    def _predict_huggingface(self, image, model, processor, model_num, total_models):
         """Run inference on HuggingFace model"""
+        tracker = get_progress_tracker()
+        tracker.update(f"      → Running neural network inference...")
         inputs = processor(images=image, return_tensors="pt").to(DEVICE)
         
         with torch.no_grad():

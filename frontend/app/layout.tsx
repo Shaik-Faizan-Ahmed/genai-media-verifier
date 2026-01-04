@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
-import { PillBase } from "@/components/ui/3d-adaptive-navigation-bar"
+import ConditionalNav from '@/components/conditional-nav'
 
 const geist = Geist({ subsets: ["latin"], variable: '--font-geist' });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: '--font-geist-mono' });
@@ -38,12 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geist.variable} ${geistMono.variable} ${spaceGrotesk.variable} font-sans antialiased`} suppressHydrationWarning>
-        <div className="fixed top-6 left-8 z-50">
-          <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain drop-shadow-lg" />
-        </div>
-        <div className="fixed top-6 left-0 right-0 z-50 flex justify-center pointer-events-none">
-          <PillBase />
-        </div>
+        <ConditionalNav />
         {children}
         <Analytics />
       </body>
