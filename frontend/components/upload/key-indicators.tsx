@@ -63,11 +63,9 @@ export default function KeyIndicators({ results, fileType }: KeyIndicatorsProps)
       }
     }
   } else {
-    // Video indicators
     const layerSummaries = results.layer_summaries || {}
     const frameBasedMax = layerSummaries.visual?.frame_based?.ensemble_max || 0
 
-    // Priority indicators
     if (frameBasedMax > 0.95) {
       indicators.push('Single frame triggered a high-risk override')
     }
@@ -95,7 +93,6 @@ export default function KeyIndicators({ results, fileType }: KeyIndicatorsProps)
       indicators.push('Unnatural blink pattern observed')
     }
 
-    // Add from anomalies arrays
     if (layerSummaries.visual?.temporal?.anomalies) {
       layerSummaries.visual.temporal.anomalies.slice(0, 2).forEach((anomaly: string) => {
         if (!indicators.some(ind => ind.toLowerCase().includes(anomaly.toLowerCase().split(' ')[0]))) {
@@ -125,7 +122,6 @@ export default function KeyIndicators({ results, fileType }: KeyIndicatorsProps)
     }
   }
 
-  // Limit to 6 indicators
   const uniqueIndicators = Array.from(new Set(indicators)).slice(0, 6)
 
   if (uniqueIndicators.length === 0) {
@@ -133,16 +129,20 @@ export default function KeyIndicators({ results, fileType }: KeyIndicatorsProps)
   }
 
   return (
-    <div className="h-full flex flex-col justify-center space-y-4 p-6 bg-white rounded-lg border border-neutral-200 shadow-sm">
+    <div className="h-full flex flex-col justify-center space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-neutral-900 tracking-tight">Key Indicators Detected</h3>
+        <h3 className="text-xl font-light tracking-[3px] uppercase text-white/90">
+          Key Indicators
+        </h3>
       </div>
       
-      <div className="space-y-2">
+      <div className="space-y-3">
         {uniqueIndicators.map((indicator, idx) => (
-          <div key={idx} className="flex items-start gap-2">
-            <span className="text-neutral-400 mt-1">•</span>
-            <p className="text-sm text-neutral-700 leading-relaxed">{indicator}</p>
+          <div key={idx} className="flex items-start gap-3 group">
+            <span className="text-cyan-400/50 mt-0.5 group-hover:text-cyan-400 transition-colors">▸</span>
+            <p className="text-sm text-white/70 leading-relaxed group-hover:text-white/90 transition-colors">
+              {indicator}
+            </p>
           </div>
         ))}
       </div>

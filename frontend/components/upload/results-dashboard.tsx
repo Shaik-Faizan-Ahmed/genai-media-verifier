@@ -7,6 +7,7 @@ import SignalsOverview from './signals-overview'
 import KeyIndicators from './key-indicators'
 import TechnicalAnalysis from './technical-analysis'
 import FullReport from './full-report'
+import { useState } from 'react'
 
 interface ResultsDashboardProps {
   results: any
@@ -21,6 +22,7 @@ export default function ResultsDashboard({
   mode, 
   onReset 
 }: ResultsDashboardProps) {
+  const [hoveredChart, setHoveredChart] = useState<string | null>(null)
   
   const handleDownload = () => {
     const dataStr = JSON.stringify(results, null, 2)
@@ -38,14 +40,30 @@ export default function ResultsDashboard({
   const confidence = results.confidence || 0
 
   return (
-    <section id="results-section" className="min-h-screen bg-neutral-50 py-16 px-6">
-      <div className="max-w-7xl mx-auto space-y-16">
+    <section id="results-section" className="relative py-20 px-6 overflow-hidden">
+      {/* Background Grid */}
+      <div className="absolute inset-0 bg-grid opacity-20" />
+      
+      <div className="relative max-w-7xl mx-auto space-y-16 z-10">
         
+        {/* Header */}
+        <div className="text-center space-y-4 animate-fade-in-up">
+          <p className="text-sm font-light tracking-[3px] uppercase text-white/50">
+            ANALYSIS COMPLETE
+          </p>
+          <h2 className="text-5xl md:text-6xl font-light tracking-[8px] text-white uppercase">
+            RESULTS
+          </h2>
+        </div>
+
         {/* Risk Gauge, Confidence, and Key Indicators Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div 
+          className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-fade-in-up opacity-0"
+          style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}
+        >
           {/* Risk Gauge */}
           <div className="flex justify-center">
-            <div className="flex flex-col items-center space-y-4">
+            <div className="glass-card border-white/10 rounded-3xl p-8 w-full">
               <RiskGauge 
                 manipulationScore={finalScore}
                 riskLevel={riskLevel}
@@ -56,7 +74,7 @@ export default function ResultsDashboard({
 
           {/* Confidence Gauge */}
           <div className="flex justify-center">
-            <div className="flex flex-col items-center space-y-4">
+            <div className="glass-card border-white/10 rounded-3xl p-8 w-full">
               <RiskGauge 
                 manipulationScore={confidence}
                 riskLevel="confidence"
@@ -67,47 +85,97 @@ export default function ResultsDashboard({
 
           {/* Key Indicators */}
           <div className="flex items-center">
-            <KeyIndicators 
+            <div className="glass-card border-white/10 rounded-3xl p-8 w-full">
+              <KeyIndicators 
+                results={results}
+                fileType={fileType}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Signals Overview - Full viewport height section */}
+        <div 
+          className="animate-fade-in-up opacity-0 min-h-screen flex items-center py-20"
+          style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}
+        >
+          <div className="w-full">
+            <SignalsOverview 
+              results={results}
+              fileType={fileType}
+              onChartHover={setHoveredChart}
+              hoveredChart={hoveredChart}
+            />
+          </div>
+        </div>
+
+        {/* Technical Analysis */}
+        <div 
+          className="animate-fade-in-up opacity-0"
+          style={{ animationDelay: '0.6s', animationFillMode: 'forwards' }}
+        >
+          <div className="glass-card border-white/10 rounded-3xl p-8">
+            <TechnicalAnalysis 
               results={results}
               fileType={fileType}
             />
           </div>
         </div>
 
-        {/* Signals Overview */}
-        <SignalsOverview 
-          results={results}
-          fileType={fileType}
-        />
-
-        {/* Technical Analysis */}
-        <TechnicalAnalysis 
-          results={results}
-          fileType={fileType}
-        />
-
         {/* Full Report */}
-        <FullReport report={results.report} />
+        <div 
+          className="animate-fade-in-up opacity-0"
+          style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}
+        >
+          <div className="glass-card border-white/10 rounded-3xl p-8">
+            <FullReport report={results.report} />
+          </div>
+        </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-center gap-4 pt-8 border-t border-neutral-200">
-          <Button
+        <div 
+          className="flex items-center justify-center gap-6 pt-8 border-t border-white/10 animate-fade-in-up opacity-0"
+          style={{ animationDelay: '1s', animationFillMode: 'forwards' }}
+        >
+          <button
             onClick={onReset}
-            className="px-8 py-3 bg-neutral-900 text-white hover:bg-neutral-800 font-medium"
+            className="group relative px-10 py-4 glass-card border-white/20 overflow-hidden transition-all duration-300 hover:bg-white/[0.12] hover:border-white/35 hover:-translate-y-0.5"
           >
-            <RotateCcw className="w-4 h-4 mr-2" />
-            Analyze Another
-          </Button>
+            <span className="absolute top-1/2 left-1/2 w-0 h-0 rounded-full bg-white/10 -translate-x-1/2 -translate-y-1/2 transition-all duration-[600ms] group-hover:w-[300px] group-hover:h-[300px]" />
+            <span className="relative z-10 flex items-center gap-3 text-white tracking-[1px] uppercase text-sm">
+              <RotateCcw className="w-4 h-4" />
+              New Analysis
+            </span>
+          </button>
 
-          <Button
+          <button
             onClick={handleDownload}
-            className="px-8 py-3 bg-blue-600 text-white hover:bg-blue-700 font-medium"
+            className="group relative px-10 py-4 glass-card border-neon-blue overflow-hidden transition-all duration-300 hover:bg-cyan-500/10 hover:-translate-y-0.5"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Download Report
-          </Button>
+            <span className="absolute top-1/2 left-1/2 w-0 h-0 rounded-full bg-cyan-500/20 -translate-x-1/2 -translate-y-1/2 transition-all duration-[600ms] group-hover:w-[300px] group-hover:h-[300px]" />
+            <span className="relative z-10 flex items-center gap-3 text-neon-blue tracking-[1px] uppercase text-sm">
+              <Download className="w-4 h-4" />
+              Download Report
+            </span>
+          </button>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-in-up {
+          animation: fadeInUp 0.8s ease forwards;
+        }
+      `}</style>
     </section>
   )
 }

@@ -34,32 +34,32 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
       : value
     
     return (
-      <div className="flex justify-between items-center py-2.5 border-b border-neutral-100 last:border-0">
-        <span className="text-sm text-neutral-600">{label}</span>
-        <span className="text-sm font-semibold text-neutral-900">{displayValue}</span>
+      <div className="flex justify-between items-center py-3 border-b border-white/10 last:border-0">
+        <span className="text-sm text-white/60">{label}</span>
+        <span className="text-sm font-light text-white">{displayValue}</span>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">Technical Analysis</h2>
-        <p className="text-neutral-600 mt-1">Detailed forensic inspection on demand</p>
+        <h2 className="text-3xl font-light tracking-[4px] uppercase text-white">Technical Analysis</h2>
+        <p className="text-white/50 mt-2 tracking-wide">Detailed forensic inspection</p>
       </div>
 
-      <div className="border-b border-neutral-200">
-        <div className="flex gap-6 overflow-x-auto">
+      <div className="border-b border-white/10">
+        <div className="flex gap-8 overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                pb-3 px-1 text-sm font-medium tracking-wide whitespace-nowrap
-                transition-colors border-b-2 -mb-px
+                pb-4 px-2 text-sm font-light tracking-[2px] uppercase whitespace-nowrap
+                transition-all border-b-2 -mb-px
                 ${activeTab === tab.id 
-                  ? 'border-neutral-900 text-neutral-900' 
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  ? 'border-cyan-400 text-cyan-400' 
+                  : 'border-transparent text-white/40 hover:text-white/70'
                 }
               `}
             >
@@ -71,8 +71,8 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
 
       <div className="min-h-[300px]">
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <p className="text-neutral-700 leading-relaxed">
+          <div className="space-y-8">
+            <p className="text-white/70 leading-relaxed">
               This {results.analysis_type || 'comprehensive'} analysis applied multiple forensic methods 
               to detect signs of manipulation or synthetic generation in this {fileType}.
             </p>
@@ -80,8 +80,8 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
             {fileType === 'image' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {results.analysis_breakdown?.neural_network && (
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-neutral-900">Neural Network Ensemble</h3>
+                  <div className="space-y-4">
+                    <h3 className="font-light tracking-[2px] uppercase text-white/90">Neural Network Ensemble</h3>
                     <div className="space-y-1">
                       {renderMetric('Detection Score', results.analysis_breakdown.neural_network.score, '%')}
                       {renderMetric('Confidence', results.analysis_breakdown.neural_network.confidence, '%')}
@@ -90,8 +90,8 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
                   </div>
                 )}
                 {results.analysis_breakdown?.frequency_domain && (
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-neutral-900">Frequency Domain</h3>
+                  <div className="space-y-4">
+                    <h3 className="font-light tracking-[2px] uppercase text-white/90">Frequency Domain</h3>
                     <div className="space-y-1">
                       {renderMetric('Overall Score', results.analysis_breakdown.frequency_domain.score, '%')}
                       {renderMetric('FFT Analysis', results.analysis_breakdown.frequency_domain.fft_score, '%')}
@@ -103,8 +103,8 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {results.layer_summaries?.visual?.frame_based && (
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-neutral-900">Frame Analysis</h3>
+                  <div className="space-y-4">
+                    <h3 className="font-light tracking-[2px] uppercase text-white/90">Frame Analysis</h3>
                     <div className="space-y-1">
                       {renderMetric('Ensemble Average', results.layer_summaries.visual.frame_based.ensemble_avg, '%')}
                       {renderMetric('Face Average', results.layer_summaries.visual.frame_based.face_avg, '%')}
@@ -113,8 +113,8 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
                   </div>
                 )}
                 {results.layer_summaries?.visual?.temporal && (
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-neutral-900">Temporal Consistency</h3>
+                  <div className="space-y-4">
+                    <h3 className="font-light tracking-[2px] uppercase text-white/90">Temporal Consistency</h3>
                     <div className="space-y-1">
                       {renderMetric('Overall Score', results.layer_summaries.visual.temporal.score, '%')}
                       {renderMetric('Identity Shifts', results.layer_summaries.visual.temporal.identity_shifts, '')}
@@ -127,29 +127,28 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
           </div>
         )}
 
-        {/* Image-specific tabs */}
         {fileType === 'image' && activeTab === 'neural' && results.analysis_breakdown?.neural_network && (
-          <div className="space-y-6">
-            <p className="text-neutral-700 leading-relaxed text-sm">
+          <div className="space-y-8">
+            <p className="text-white/60 leading-relaxed text-sm">
               Deep learning models trained on thousands of real and fake images to detect subtle patterns.
             </p>
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <div className="text-xs text-neutral-500 tracking-wide uppercase">Overall Score</div>
-                  <div className="text-3xl font-bold text-neutral-900">
+            <div className="space-y-6">
+              <div className="grid grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <div className="text-xs text-white/40 tracking-[2px] uppercase">Overall Score</div>
+                  <div className="text-4xl font-light text-cyan-400">
                     {Math.round(results.analysis_breakdown.neural_network.score * 100)}%
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-xs text-neutral-500 tracking-wide uppercase">Confidence</div>
-                  <div className="text-3xl font-bold text-neutral-900">
+                <div className="space-y-2">
+                  <div className="text-xs text-white/40 tracking-[2px] uppercase">Confidence</div>
+                  <div className="text-4xl font-light text-cyan-400">
                     {Math.round(results.analysis_breakdown.neural_network.confidence * 100)}%
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-xs text-neutral-500 tracking-wide uppercase">Agreement</div>
-                  <div className="text-lg font-semibold text-neutral-900 capitalize pt-1">
+                <div className="space-y-2">
+                  <div className="text-xs text-white/40 tracking-[2px] uppercase">Agreement</div>
+                  <div className="text-lg font-light text-white capitalize pt-2">
                     {results.analysis_breakdown.neural_network.model_agreement?.replace('_', ' ')}
                   </div>
                 </div>
@@ -158,16 +157,15 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
           </div>
         )}
 
-        {/* Video-specific tabs */}
         {fileType === 'video' && activeTab === 'visual' && results.layer_summaries?.visual && (
-          <div className="space-y-6">
-            <p className="text-neutral-700 leading-relaxed text-sm">
+          <div className="space-y-8">
+            <p className="text-white/60 leading-relaxed text-sm">
               Multi-modal visual analysis combining frame-based detection, temporal consistency, and 3D video models.
             </p>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {results.layer_summaries.visual.frame_based && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-neutral-900">Frame-Based Analysis</h3>
+                <div className="space-y-4">
+                  <h3 className="font-light tracking-[2px] uppercase text-white/90">Frame-Based Analysis</h3>
                   <div className="space-y-1">
                     {renderMetric('Ensemble Average', results.layer_summaries.visual.frame_based.ensemble_avg, '%')}
                     {renderMetric('Ensemble Maximum', results.layer_summaries.visual.frame_based.ensemble_max, '%')}
@@ -177,8 +175,8 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
                 </div>
               )}
               {results.layer_summaries.visual.temporal && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-neutral-900">Temporal Consistency</h3>
+                <div className="space-y-4">
+                  <h3 className="font-light tracking-[2px] uppercase text-white/90">Temporal Consistency</h3>
                   <div className="space-y-1">
                     {renderMetric('Consistency Score', results.layer_summaries.visual.temporal.score, '%')}
                     {renderMetric('Identity Shifts', results.layer_summaries.visual.temporal.identity_shifts, '')}
@@ -191,14 +189,14 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
         )}
 
         {fileType === 'video' && activeTab === 'audio' && results.layer_summaries?.audio && (
-          <div className="space-y-6">
-            <p className="text-neutral-700 leading-relaxed text-sm">
+          <div className="space-y-8">
+            <p className="text-white/60 leading-relaxed text-sm">
               Analyzes voice characteristics and lip-sync correlation to detect audio deepfakes.
             </p>
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <div className="text-xs text-neutral-500 tracking-wide uppercase">Overall Score</div>
-                <div className="text-3xl font-bold text-neutral-900">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="text-xs text-white/40 tracking-[2px] uppercase">Overall Score</div>
+                <div className="text-4xl font-light text-cyan-400">
                   {Math.round(results.layer_summaries.audio.score * 100)}%
                 </div>
               </div>
@@ -211,14 +209,14 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
         )}
 
         {fileType === 'video' && activeTab === 'physiological' && results.layer_summaries?.physiological && (
-          <div className="space-y-6">
-            <p className="text-neutral-700 leading-relaxed text-sm">
+          <div className="space-y-8">
+            <p className="text-white/60 leading-relaxed text-sm">
               Detects physiological signals like heartbeat and blink patterns via remote sensing.
             </p>
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <div className="text-xs text-neutral-500 tracking-wide uppercase">Overall Score</div>
-                <div className="text-3xl font-bold text-neutral-900">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="text-xs text-white/40 tracking-[2px] uppercase">Overall Score</div>
+                <div className="text-4xl font-light text-cyan-400">
                   {Math.round(results.layer_summaries.physiological.score * 100)}%
                 </div>
               </div>
@@ -235,14 +233,14 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
         )}
 
         {fileType === 'video' && activeTab === 'physics' && results.layer_summaries?.physics && (
-          <div className="space-y-6">
-            <p className="text-neutral-700 leading-relaxed text-sm">
+          <div className="space-y-8">
+            <p className="text-white/60 leading-relaxed text-sm">
               Checks lighting consistency and depth plausibility using physics-based analysis.
             </p>
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <div className="text-xs text-neutral-500 tracking-wide uppercase">Overall Score</div>
-                <div className="text-3xl font-bold text-neutral-900">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="text-xs text-white/40 tracking-[2px] uppercase">Overall Score</div>
+                <div className="text-4xl font-light text-cyan-400">
                   {Math.round(results.layer_summaries.physics.score * 100)}%
                 </div>
               </div>
@@ -255,14 +253,14 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
         )}
 
         {fileType === 'video' && activeTab === 'specialized' && results.layer_summaries?.specialized && (
-          <div className="space-y-6">
-            <p className="text-neutral-700 leading-relaxed text-sm">
+          <div className="space-y-8">
+            <p className="text-white/60 leading-relaxed text-sm">
               Advanced boundary and compression analysis for detecting splice points and editing artifacts.
             </p>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {results.layer_summaries.specialized.boundary && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-neutral-900">Boundary Analysis</h3>
+                <div className="space-y-4">
+                  <h3 className="font-light tracking-[2px] uppercase text-white/90">Boundary Analysis</h3>
                   <div className="space-y-1">
                     {renderMetric('Detection Score', results.layer_summaries.specialized.boundary.score, '%')}
                     {renderMetric('Suspicious Transitions', results.layer_summaries.specialized.boundary.suspicious_transitions, '')}
@@ -271,8 +269,8 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
                 </div>
               )}
               {results.layer_summaries.specialized.compression && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-neutral-900">Compression Analysis</h3>
+                <div className="space-y-4">
+                  <h3 className="font-light tracking-[2px] uppercase text-white/90">Compression Analysis</h3>
                   <div className="space-y-1">
                     {renderMetric('Detection Score', results.layer_summaries.specialized.compression.score, '%')}
                     {renderMetric('Compression Mismatches', results.layer_summaries.specialized.compression.mismatches, '')}
@@ -286,26 +284,26 @@ export default function TechnicalAnalysis({ results, fileType }: TechnicalAnalys
         )}
 
         {activeTab === 'metadata' && (
-          <div className="space-y-6">
-            <p className="text-neutral-700 leading-relaxed text-sm">
+          <div className="space-y-8">
+            <p className="text-white/60 leading-relaxed text-sm">
               {fileType === 'image' 
                 ? 'Analyzes EXIF metadata and compression patterns using Error Level Analysis.'
                 : 'Analyzes video container metadata, encoding parameters, and frame rate consistency.'
               }
             </p>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {fileType === 'image' && results.analysis_breakdown?.metadata_forensics && (
-                <div className="space-y-1">
-                  <div className="text-xs text-neutral-500 tracking-wide uppercase">Overall Score</div>
-                  <div className="text-3xl font-bold text-neutral-900">
+                <div className="space-y-2">
+                  <div className="text-xs text-white/40 tracking-[2px] uppercase">Overall Score</div>
+                  <div className="text-4xl font-light text-cyan-400">
                     {Math.round(results.analysis_breakdown.metadata_forensics.score * 100)}%
                   </div>
                 </div>
               )}
               {fileType === 'video' && results.layer_summaries?.metadata && (
-                <div className="space-y-1">
-                  <div className="text-xs text-neutral-500 tracking-wide uppercase">Overall Score</div>
-                  <div className="text-3xl font-bold text-neutral-900">
+                <div className="space-y-2">
+                  <div className="text-xs text-white/40 tracking-[2px] uppercase">Overall Score</div>
+                  <div className="text-4xl font-light text-cyan-400">
                     {Math.round(results.layer_summaries.metadata.score * 100)}%
                   </div>
                 </div>

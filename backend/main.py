@@ -295,11 +295,17 @@ async def analyze_video_comprehensive_endpoint(file: UploadFile = File(...)):
     try:
         validate_file(file, config.ALLOWED_VIDEO_EXTENSIONS)
         
+        # Reset progress tracker for new analysis
+        reset_progress_tracker()
+        tracker = get_progress_tracker()
+        
         video_path = os.path.join(UPLOAD_DIR, file.filename)
         
         # Save uploaded file
         with open(video_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
+        tracker.update("📁 File uploaded successfully")
         
         # Import comprehensive detector
         from models.video.comprehensive_detector import analyze_video_comprehensive
@@ -428,6 +434,8 @@ async def analyze_video_comprehensive_endpoint(file: UploadFile = File(...)):
                 "face_compression": round(compression.get('avg_face_compression', 0), 3),
                 "background_compression": round(compression.get('avg_background_compression', 0), 3)
             }
+        
+        tracker.update("✅ Analysis complete!")
         
         return response
     

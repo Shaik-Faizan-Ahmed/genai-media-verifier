@@ -13,26 +13,30 @@ export default function RiskGauge({ manipulationScore, riskLevel, gaugeType = 'r
     if (gaugeType === 'confidence') {
       return {
         label: 'MODEL CERTAINTY',
-        color: 'text-blue-700',
-        gaugeColor: '#3b82f6'
+        color: 'text-cyan-400',
+        gaugeColor: '#00f3ff',
+        glowColor: 'rgba(0, 243, 255, 0.3)'
       }
     }
     
     const level = riskLevel.toLowerCase()
     if (level === 'low') return { 
       label: 'LOW RISK', 
-      color: 'text-emerald-700',
-      gaugeColor: '#059669'
+      color: 'text-emerald-400',
+      gaugeColor: '#10b981',
+      glowColor: 'rgba(16, 185, 129, 0.3)'
     }
     if (level === 'medium') return { 
       label: 'MEDIUM RISK', 
-      color: 'text-amber-700',
-      gaugeColor: '#d97706'
+      color: 'text-amber-400',
+      gaugeColor: '#f59e0b',
+      glowColor: 'rgba(245, 158, 11, 0.3)'
     }
     return { 
       label: 'HIGH RISK', 
-      color: 'text-rose-700',
-      gaugeColor: '#dc2626'
+      color: 'text-rose-400',
+      gaugeColor: '#f43f5e',
+      glowColor: 'rgba(244, 63, 94, 0.3)'
     }
   }
 
@@ -41,17 +45,19 @@ export default function RiskGauge({ manipulationScore, riskLevel, gaugeType = 'r
   const offset = circumference - (percentage / 100) * circumference
 
   return (
-    <div className="flex flex-col items-center space-y-4">
+    <div className="flex flex-col items-center space-y-6">
       <div className="relative">
         <svg width="280" height="280" viewBox="0 0 280 280" className="transform -rotate-90">
+          {/* Background circle */}
           <circle
             cx="140"
             cy="140"
             r="110"
             fill="none"
-            stroke="#e5e7eb"
+            stroke="rgba(255, 255, 255, 0.05)"
             strokeWidth="16"
           />
+          {/* Animated gauge */}
           <circle
             cx="140"
             cy="140"
@@ -63,21 +69,27 @@ export default function RiskGauge({ manipulationScore, riskLevel, gaugeType = 'r
             strokeDashoffset={offset}
             strokeLinecap="round"
             className="transition-all duration-1000 ease-out"
+            style={{
+              filter: `drop-shadow(0 0 10px ${config.glowColor})`
+            }}
           />
         </svg>
 
+        {/* Center text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className={`text-6xl font-bold tracking-tight ${config.color} mb-1`}>
+          <div className={`text-7xl font-light tracking-wider ${config.color} mb-2`}
+               style={{ textShadow: `0 0 20px ${config.glowColor}` }}>
             {percentage}
           </div>
-          <div className="text-sm text-neutral-500 tracking-wide">
-            {gaugeType === 'risk' ? 'MANIPULATION' : 'CONFIDENCE'}
+          <div className="text-xs text-white/40 tracking-[3px] uppercase">
+            {gaugeType === 'risk' ? 'Manipulation' : 'Confidence'}
           </div>
         </div>
       </div>
 
+      {/* Label */}
       <div className="text-center">
-        <div className={`text-xl font-semibold tracking-wide ${config.color}`}>
+        <div className={`text-lg font-light tracking-[3px] uppercase ${config.color}`}>
           {config.label}
         </div>
       </div>

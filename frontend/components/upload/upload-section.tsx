@@ -1,8 +1,7 @@
 "use client"
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { Upload, FileImage, FileVideo } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 
 type AnalysisMode = 'quick' | 'deep'
 
@@ -69,12 +68,22 @@ export default function UploadSection({
   }
 
   return (
-    <section className="min-h-[80vh] flex items-center justify-center px-6 py-12">
-      <div className="w-full max-w-2xl space-y-8">
+    <section className="relative flex items-center justify-center px-6 overflow-hidden h-screen">
+      {/* Background Grid */}
+      <div className="absolute inset-0 bg-grid opacity-20" />
+      
+      <div className="relative w-full max-w-3xl space-y-6 z-10">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-gray-900">Media Analysis</h1>
-          <p className="text-gray-600">Upload an image or video for AI-powered verification</p>
+        <div className="text-center space-y-2 animate-fade-in-up">
+          <p className="text-xs font-light tracking-[3px] uppercase text-white/50">
+            AI-POWERED VERIFICATION
+          </p>
+          <h1 className="text-4xl md:text-5xl font-light tracking-[8px] text-white uppercase">
+            ANALYZE
+          </h1>
+          <p className="text-white/60 text-sm tracking-wide">
+            Upload media for comprehensive authenticity analysis
+          </p>
         </div>
 
         {/* Upload Zone */}
@@ -82,14 +91,19 @@ export default function UploadSection({
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
           className={`
-            relative border-2 border-dashed rounded-2xl p-12
-            transition-all duration-200
+            group relative glass-card rounded-3xl p-10
+            transition-all duration-500
             ${disabled 
-              ? 'border-gray-300 bg-gray-50 cursor-not-allowed' 
-              : 'border-gray-400 bg-white hover:border-gray-600 hover:bg-gray-50 cursor-pointer'
+              ? 'opacity-50 cursor-not-allowed' 
+              : 'cursor-pointer hover:bg-white/[0.08] hover:border-white/20'
             }
-            ${file ? 'border-green-500 bg-green-50' : ''}
+            ${file ? 'border-neon-blue bg-white/[0.06]' : 'border-white/10'}
+            animate-fade-in-up
+            [animation-delay:0.2s]
+            [animation-fill-mode:forwards]
+            opacity-0
           `}
+          style={{ animationDelay: '0.2s' }}
         >
           <input
             type="file"
@@ -105,70 +119,127 @@ export default function UploadSection({
             className="flex flex-col items-center justify-center cursor-pointer"
           >
             {file ? (
-              <>
+              <div className="text-center space-y-3">
                 {file.type.startsWith('image/') ? (
-                  <FileImage className="w-16 h-16 text-green-600 mb-4" />
+                  <FileImage className="w-14 h-14 text-neon-blue mx-auto animate-pulse" />
                 ) : (
-                  <FileVideo className="w-16 h-16 text-green-600 mb-4" />
+                  <FileVideo className="w-14 h-14 text-neon-blue mx-auto animate-pulse" />
                 )}
-                <p className="text-lg font-medium text-gray-900 mb-2">{file.name}</p>
-                <p className="text-sm text-gray-600">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-              </>
+                <div className="space-y-1">
+                  <p className="text-lg font-light text-white tracking-wide">{file.name}</p>
+                  <p className="text-xs text-white/50 tracking-widest uppercase">
+                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+              </div>
             ) : (
-              <>
-                <Upload className="w-16 h-16 text-gray-400 mb-4" />
-                <p className="text-lg font-medium text-gray-700 mb-2">
-                  Drag & drop an image or video
-                </p>
-                <p className="text-sm text-gray-500 mb-4">or</p>
-                <span className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
-                  Click to Browse
-                </span>
-              </>
+              <div className="text-center space-y-5">
+                <Upload className="w-14 h-14 text-white/30 mx-auto group-hover:text-white/50 transition-colors duration-500" />
+                <div className="space-y-2">
+                  <p className="text-base font-light text-white/70 tracking-wide">
+                    Drag & drop media file
+                  </p>
+                  <p className="text-xs text-white/40 tracking-widest uppercase">or</p>
+                  <div className="inline-block px-6 py-2 border border-white/20 bg-white/[0.05] backdrop-blur-[10px] text-white/80 text-xs tracking-[2px] uppercase hover:bg-white/[0.12] hover:border-white/35 transition-all duration-300">
+                    Browse Files
+                  </div>
+                </div>
+              </div>
             )}
           </label>
+
+          {/* Scan line effect on hover */}
+          {!file && (
+            <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/10 to-transparent h-32 animate-scan" />
+            </div>
+          )}
         </div>
 
-        {/* Supported Formats */}
-        <div className="text-center text-sm text-gray-600 space-y-1">
-          <p><strong>Images:</strong> JPG, PNG, BMP, WEBP</p>
-          <p><strong>Videos:</strong> MP4, AVI, MOV, MKV</p>
-          <p className="text-xs text-gray-500">Max file size: 50 MB</p>
+        {/* File Type Info */}
+        <div 
+          className="text-center space-y-1 animate-fade-in-up opacity-0"
+          style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}
+        >
+          <div className="flex items-center justify-center gap-6 text-xs text-white/40 tracking-widest uppercase">
+            <span>JPG • PNG • BMP • WEBP</span>
+            <span className="text-white/20">|</span>
+            <span>MP4 • AVI • MOV • MKV</span>
+          </div>
+          <p className="text-[10px] text-white/30 tracking-wider">Maximum file size: 50 MB</p>
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+          <div className="glass-card border-red-500/30 bg-red-500/10 rounded-2xl p-3 text-red-400 text-center tracking-wide animate-fade-in-up text-sm">
             {error}
           </div>
         )}
 
         {/* Analysis Mode Selection */}
         {file && (
-          <div className="space-y-4">
-            <p className="text-center text-sm font-medium text-gray-700">Select Analysis Mode</p>
-            <div className="grid grid-cols-2 gap-4">
-              <Button
+          <div 
+            className="space-y-3 animate-fade-in-up opacity-0"
+            style={{ animationDelay: '0.6s', animationFillMode: 'forwards' }}
+          >
+            <p className="text-center text-xs font-light tracking-[3px] uppercase text-white/50">
+              Select Analysis Mode
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Quick Scan Button */}
+              <button
                 onClick={() => onAnalyze('quick')}
                 disabled={disabled}
-                className="h-auto py-6 flex flex-col items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300"
+                className="group relative px-6 py-4 glass-card border-white/10 overflow-hidden transition-all duration-300 hover:bg-white/[0.08] hover:border-white/25 hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               >
-                <span className="text-lg font-semibold">⚡ Quick Scan</span>
-                <span className="text-xs opacity-90">Faster • Basic Analysis</span>
-              </Button>
+                <span className="absolute top-1/2 left-1/2 w-0 h-0 rounded-full bg-cyan-500/20 -translate-x-1/2 -translate-y-1/2 transition-all duration-[600ms] group-hover:w-[500px] group-hover:h-[500px]" />
+                <div className="relative z-10 space-y-1">
+                  <div className="text-xl">⚡</div>
+                  <p className="text-base font-light tracking-[2px] uppercase text-white">Quick Scan</p>
+                  <p className="text-[10px] text-white/50 tracking-wider">Rapid • Essential Analysis</p>
+                </div>
+              </button>
 
-              <Button
+              {/* Deep Analysis Button */}
+              <button
                 onClick={() => onAnalyze('deep')}
                 disabled={disabled}
-                className="h-auto py-6 flex flex-col items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-300"
+                className="group relative px-6 py-4 glass-card border-white/10 overflow-hidden transition-all duration-300 hover:bg-white/[0.08] hover:border-neon-blue hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               >
-                <span className="text-lg font-semibold">🔬 Deep Analysis</span>
-                <span className="text-xs opacity-90">Slower • Comprehensive</span>
-              </Button>
+                <span className="absolute top-1/2 left-1/2 w-0 h-0 rounded-full bg-cyan-500/20 -translate-x-1/2 -translate-y-1/2 transition-all duration-[600ms] group-hover:w-[500px] group-hover:h-[500px]" />
+                <div className="relative z-10 space-y-1">
+                  <div className="text-xl">🔬</div>
+                  <p className="text-base font-light tracking-[2px] uppercase text-white">Deep Analysis</p>
+                  <p className="text-[10px] text-white/50 tracking-wider">Comprehensive • Multi-Layer</p>
+                </div>
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        @keyframes scan {
+          0% { top: -10%; }
+          100% { top: 110%; }
+        }
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-in-up {
+          animation: fadeInUp 0.8s ease forwards;
+        }
+        .animate-scan {
+          animation: scan 3s ease-in-out infinite;
+        }
+      `}</style>
     </section>
   )
 }
