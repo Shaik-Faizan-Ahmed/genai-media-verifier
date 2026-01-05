@@ -176,44 +176,23 @@ export default function UploadSection({
           </div>
         )}
 
-        {/* Analysis Mode Selection */}
+        {/* Analysis Button */}
         {file && (
           <div 
-            className="space-y-3 animate-fade-in-up opacity-0"
+            className="flex justify-center animate-fade-in-up opacity-0"
             style={{ animationDelay: '0.6s', animationFillMode: 'forwards' }}
           >
-            <p className="text-center text-xs font-light tracking-[3px] uppercase text-white/50">
-              Select Analysis Mode
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Quick Scan Button */}
-              <button
-                onClick={() => onAnalyze('quick')}
-                disabled={disabled}
-                className="group relative px-6 py-4 glass-card border-white/10 overflow-hidden transition-all duration-300 hover:bg-white/[0.08] hover:border-white/25 hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-              >
-                <span className="absolute top-1/2 left-1/2 w-0 h-0 rounded-full bg-cyan-500/20 -translate-x-1/2 -translate-y-1/2 transition-all duration-[600ms] group-hover:w-[500px] group-hover:h-[500px]" />
-                <div className="relative z-10 space-y-1">
-                  <div className="text-xl">⚡</div>
-                  <p className="text-base font-light tracking-[2px] uppercase text-white">Quick Scan</p>
-                  <p className="text-[10px] text-white/50 tracking-wider">Rapid • Essential Analysis</p>
-                </div>
-              </button>
-
-              {/* Deep Analysis Button */}
-              <button
-                onClick={() => onAnalyze('deep')}
-                disabled={disabled}
-                className="group relative px-6 py-4 glass-card border-white/10 overflow-hidden transition-all duration-300 hover:bg-white/[0.08] hover:border-neon-blue hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-              >
-                <span className="absolute top-1/2 left-1/2 w-0 h-0 rounded-full bg-cyan-500/20 -translate-x-1/2 -translate-y-1/2 transition-all duration-[600ms] group-hover:w-[500px] group-hover:h-[500px]" />
-                <div className="relative z-10 space-y-1">
-                  <div className="text-xl">🔬</div>
-                  <p className="text-base font-light tracking-[2px] uppercase text-white">Deep Analysis</p>
-                  <p className="text-[10px] text-white/50 tracking-wider">Comprehensive • Multi-Layer</p>
-                </div>
-              </button>
-            </div>
+            <button
+              onClick={() => onAnalyze('deep')}
+              disabled={disabled}
+              className="group relative px-12 py-5 glass-card border-neon-blue overflow-hidden transition-all duration-300 hover:bg-cyan-500/10 hover:border-cyan-400 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(0,243,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            >
+              <span className="absolute top-1/2 left-1/2 w-0 h-0 rounded-full bg-cyan-500/20 -translate-x-1/2 -translate-y-1/2 transition-all duration-[600ms] group-hover:w-[500px] group-hover:h-[500px]" />
+              <div className="relative z-10 space-y-1">
+                <p className="text-lg font-light tracking-[3px] uppercase text-white">Begin Analysis</p>
+                <p className="text-[10px] text-white/50 tracking-wider uppercase">Comprehensive Multi-Layer Detection</p>
+              </div>
+            </button>
           </div>
         )}
       </div>
