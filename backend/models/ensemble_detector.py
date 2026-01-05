@@ -65,9 +65,13 @@ class EnsembleDetector:
         except Exception as e:
             pass
     
-    def predict_ensemble(self, image):
+    def predict_ensemble(self, image, silent=False):
         """
         Run all models and combine predictions with weighted voting.
+        
+        Args:
+            image: PIL Image or path to image
+            silent: If True, suppress progress updates (useful for batch/video analysis)
         
         Returns:
             dict: {
@@ -79,10 +83,12 @@ class EnsembleDetector:
         """
         tracker = get_progress_tracker()
         
-        tracker.update("🔍 Starting deepfake detection analysis...")
+        if not silent:
+            tracker.update("🔍 Starting deepfake detection analysis...")
         
         if len(self.models) == 0:
-            tracker.update("❌ ERROR: No models available")
+            if not silent:
+                tracker.update("❌ ERROR: No models available")
             return {
                 'score': 0.5,
                 'confidence': 0.0,
@@ -91,60 +97,71 @@ class EnsembleDetector:
                 'error': 'No models loaded'
             }
         
-        tracker.update(f"📊 Loaded {len(self.models)} AI models for analysis")
-        tracker.update(f"🖥️ Using device: {DEVICE.upper()}")
+        if not silent:
+            tracker.update(f"📊 Loaded {len(self.models)} AI models for analysis")
+            tracker.update(f"🖥️ Using device: {DEVICE.upper()}")
         
         if isinstance(image, str):
-            tracker.update("📂 Loading image file...")
+            if not silent:
+                tracker.update("📂 Loading image file...")
             image = Image.open(image).convert('RGB')
         elif isinstance(image, Image.Image):
-            tracker.update("🖼️ Processing image...")
+            if not silent:
+                tracker.update("🖼️ Processing image...")
             image = image.convert('RGB')
         
-        tracker.update(f"✓ Image loaded: {image.size[0]}x{image.size[1]} pixels")
+        if not silent:
+            tracker.update(f"✓ Image loaded: {image.size[0]}x{image.size[1]} pixels")
         
         predictions = []
         confidences = []
         
         # Run each model
-        tracker.update("\n🤖 Running neural network predictions...")
+        if not silent:
+            tracker.update("\n🤖 Running neural network predictions...")
         for i, model in enumerate(self.models):
             try:
-                model_short_name = self.model_names[i].split('/')[-1]
-                tracker.update(f"  [{i+1}/{len(self.models)}] {model_short_name}")
-                tracker.update(f"      → Preprocessing image...")
+                if not silent:
+                    model_short_name = self.model_names[i].split('/')[-1]
+                    tracker.update(f"  [{i+1}/{len(self.models)}] {model_short_name}")
+                    tracker.update(f"      → Preprocessing image...")
                 
                 if self.model_types[i] == "huggingface":
-                    score, confidence = self._predict_huggingface(image, model, self.processors[i], i+1, len(self.models))
+                    score, confidence = self._predict_huggingface(image, model, self.processors[i], i+1, len(self.models), silent)
                 else:
                     score, confidence = 0.5, 0.0
                 
                 predictions.append(score)
                 confidences.append(confidence)
                 
-                result = "FAKE" if score > 0.5 else "REAL"
-                tracker.update(f"      ✓ Prediction: {result} (score: {score:.3f}, confidence: {confidence:.3f})")
+                if not silent:
+                    result = "FAKE" if score > 0.5 else "REAL"
+                    tracker.update(f"      ✓ Prediction: {result} (score: {score:.3f}, confidence: {confidence:.3f})")
             except Exception as e:
-                tracker.update(f"      ❌ Model failed: {e}")
+                if not silent:
+                    tracker.update(f"      ❌ Model failed: {e}")
                 predictions.append(0.5)
                 confidences.append(0.0)
         
         # Weighted voting based on confidence
-        tracker.update("\n🔄 Combining predictions...")
-        tracker.update("   → Using weighted voting based on confidence scores...")
+        if not silent:
+            tracker.update("\n🔄 Combining predictions...")
+            tracker.update("   → Using weighted voting based on confidence scores...")
         final_score = self._weighted_voting(predictions, confidences)
         
         # Calculate agreement
-        tracker.update("   → Calculating model agreement...")
+        if not silent:
+            tracker.update("   → Calculating model agreement...")
         agreement = self._calculate_agreement(predictions)
         
         # Calculate overall confidence
         avg_confidence = np.mean(confidences) if confidences else 0.0
         
-        tracker.update("\n📋 Analysis complete!")
-        tracker.update(f"   Final Score: {final_score:.3f} ({'FAKE' if final_score > 0.5 else 'REAL'})")
-        tracker.update(f"   Average Confidence: {avg_confidence:.3f}")
-        tracker.update(f"   Model Agreement: {agreement.replace('_', ' ').title()}")
+        if not silent:
+            tracker.update("\n📋 Analysis complete!")
+            tracker.update(f"   Final Score: {final_score:.3f} ({'FAKE' if final_score > 0.5 else 'REAL'})")
+            tracker.update(f"   Average Confidence: {avg_confidence:.3f}")
+            tracker.update(f"   Model Agreement: {agreement.replace('_', ' ').title()}")
         
         return {
             'score': float(final_score),
@@ -155,10 +172,11 @@ class EnsembleDetector:
             'num_models': len(self.models)
         }
     
-    def _predict_huggingface(self, image, model, processor, model_num, total_models):
+    def _predict_huggingface(self, image, model, processor, model_num, total_models, silent=False):
         """Run inference on HuggingFace model"""
-        tracker = get_progress_tracker()
-        tracker.update(f"      → Running neural network inference...")
+        if not silent:
+            tracker = get_progress_tracker()
+            tracker.update(f"      → Running neural network inference...")
         inputs = processor(images=image, return_tensors="pt").to(DEVICE)
         
         with torch.no_grad():
@@ -213,7 +231,7 @@ def get_ensemble_detector():
     return _ensemble_detector
 
 
-def predict_ensemble(image):
+def predict_ensemble(image, silent=False):
     """Convenience function"""
     detector = get_ensemble_detector()
-    return detector.predict_ensemble(image)
+    return detector.predict_ensemble(image, silent=silent)

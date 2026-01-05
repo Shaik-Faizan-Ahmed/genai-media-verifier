@@ -10,6 +10,7 @@ import asyncio
 import json
 from queue import Queue
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.image_utils import preprocess_image
 from models.deepfake_detector import predict_image
@@ -18,6 +19,9 @@ import config
 
 
 app = FastAPI(title="Deepfake Detection API", version="2.0")
+
+# Thread pool for running heavy analysis without blocking SSE
+executor = ThreadPoolExecutor(max_workers=2)
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -147,10 +151,15 @@ async def analyze_image_comprehensive_endpoint(file: UploadFile = File(...)):
         with open(path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        tracker.update("📁 File uploaded successfully")
+        tracker.update("File uploaded successfully")
         
-        # Run comprehensive analysis
-        results = analyze_image_comprehensive(path)
+        # Run comprehensive analysis in background thread to not block SSE
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            executor,
+            analyze_image_comprehensive,
+            path
+        )
         
         # Generate detailed report
         report = generate_comprehensive_report(results)
@@ -179,7 +188,7 @@ async def analyze_image_comprehensive_endpoint(file: UploadFile = File(...)):
                 "metadata_forensics": results.get('metadata_forensics')
             }
         
-        tracker.update("✅ Complete!")
+        tracker.update("Complete!")
         
         return response
     
@@ -199,7 +208,10 @@ async def get_analysis_progress():
         message_queue = Queue()
         
         def callback(message):
-            message_queue.put(message)
+            try:
+                message_queue.put(message)
+            except:
+                pass
         
         tracker.add_callback(callback)
         
@@ -212,9 +224,18 @@ async def get_analysis_progress():
                 else:
                     # Send heartbeat to keep connection alive
                     await asyncio.sleep(0.1)
-        except asyncio.CancelledError:
-            # Client disconnected
-            pass
+        except (asyncio.CancelledError, GeneratorExit):
+            # Client disconnected - clean up gracefully
+            try:
+                tracker.callbacks.remove(callback)
+            except:
+                pass
+        finally:
+            # Always try to remove callback on exit
+            try:
+                tracker.callbacks.remove(callback)
+            except:
+                pass
     
     return StreamingResponse(
         event_generator(),
@@ -222,6 +243,7 @@ async def get_analysis_progress():
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
         }
     )
 
@@ -305,14 +327,18 @@ async def analyze_video_comprehensive_endpoint(file: UploadFile = File(...)):
         with open(video_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        tracker.update("📁 File uploaded successfully")
+        tracker.update("File uploaded successfully")
         
         # Import comprehensive detector
         from models.video.comprehensive_detector import analyze_video_comprehensive
         
-        # Run full hybrid analysis
-        print(f"\nAnalyzing video: {file.filename}")
-        results = analyze_video_comprehensive(video_path)
+        # Run full hybrid analysis in background thread to not block SSE
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            executor,
+            analyze_video_comprehensive,
+            video_path
+        )
         
         # Cleanup uploaded file and temp frames
         try:
@@ -435,7 +461,7 @@ async def analyze_video_comprehensive_endpoint(file: UploadFile = File(...)):
                 "background_compression": round(compression.get('avg_background_compression', 0), 3)
             }
         
-        tracker.update("✅ Analysis complete!")
+        tracker.update("Analysis complete!")
         
         return response
     
