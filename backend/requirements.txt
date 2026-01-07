@@ -3,7 +3,7 @@ fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.17
 
-# Deep Learning - Python 3.13 COMPATIBLE VERSIONS
+# Deep Learning - Python 3.13 COMPATIBLE
 torch==2.9.1
 torchvision==0.24.1
 transformers==4.48.0
@@ -23,6 +23,6 @@ facenet-pytorch==2.6.0
 librosa==0.10.2
 soundfile==0.12.1
 
-# Scientific Computing
-numpy==2.2.1
+# Scientific Computing - FIXED
+numpy==1.26.4
 scipy==1.14.1
