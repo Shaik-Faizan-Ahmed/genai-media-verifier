@@ -5,11 +5,11 @@ nixPkgs = ["python312", "python312Packages.pip", "python312Packages.virtualenv"]
 cmds = [
   "python -m venv /opt/venv",
   ". /opt/venv/bin/activate && pip install --upgrade pip",
-  ". /opt/venv/bin/activate && pip install -r requirements.txt"
+  ". /opt/venv/bin/activate && pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-railway.txt"
 ]
 
 [phases.build]
-cmds = ["mkdir -p uploads"]
+cmds = ["mkdir -p uploads", "mkdir -p models_cache"]
 
 [start]
 cmd = ". /opt/venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port $PORT"
