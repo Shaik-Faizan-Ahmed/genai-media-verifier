@@ -1,11 +1,15 @@
 [phases.setup]
-nixPkgs = ["python312", "python312Packages.pip"]
+nixPkgs = ["python312", "python312Packages.pip", "python312Packages.virtualenv"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = [
+  "python -m venv /opt/venv",
+  ". /opt/venv/bin/activate && pip install --upgrade pip",
+  ". /opt/venv/bin/activate && pip install -r requirements.txt"
+]
 
 [phases.build]
 cmds = ["mkdir -p uploads"]
 
 [start]
-cmd = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+cmd = ". /opt/venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port $PORT"
