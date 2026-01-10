@@ -536,4 +536,14 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
-    uvicorn.run(app, host=host, port=port)
+    
+    # Auto-reload in development, disabled in production
+    reload = os.getenv("ENVIRONMENT", "development") == "development"
+    
+    uvicorn.run(
+        app, 
+        host=host, 
+        port=port, 
+        reload=reload,
+        reload_excludes=["models_cache/*", "uploads/*", "temp/*", "__pycache__/*"]
+    )
