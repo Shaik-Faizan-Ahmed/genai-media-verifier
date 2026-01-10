@@ -217,6 +217,7 @@ async def get_analysis_progress():
         tracker = get_progress_tracker()
         message_queue = Queue()
         last_heartbeat = time.time()
+        max_idle_time = 30  # Close connection after 30 seconds of no activity
         
         def callback(message):
             try:
@@ -236,8 +237,13 @@ async def get_analysis_progress():
                         yield f"data: {data}\n\n"
                         last_heartbeat = time.time()
                     else:
-                        # Send heartbeat every 15 seconds to keep connection alive
+                        # Check if connection has been idle too long
                         current_time = time.time()
+                        if current_time - last_heartbeat > max_idle_time:
+                            print(f"SSE connection idle for {max_idle_time}s, closing...")
+                            break
+                        
+                        # Send heartbeat every 15 seconds to keep connection alive
                         if current_time - last_heartbeat > 15:
                             yield f": heartbeat\n\n"
                             last_heartbeat = current_time
@@ -303,6 +309,126 @@ async def analyze_video_endpoint(file: UploadFile = File(...)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Video analysis failed: {str(e)}")
+
+
+@app.post("/analyze/video/quick")
+async def analyze_video_quick_endpoint(file: UploadFile = File(...)):
+    """
+    Quick video deepfake detection (Layers 1, 2A, 2B only).
+    Faster but potentially less accurate than comprehensive analysis.
+    Skips: Physiological analysis, Physics checks, and Specialized detection.
+    """
+    try:
+        validate_file(file, config.ALLOWED_VIDEO_EXTENSIONS)
+        
+        # Reset progress tracker for new analysis
+        reset_progress_tracker()
+        tracker = get_progress_tracker()
+        
+        video_path = os.path.join(UPLOAD_DIR, file.filename)
+        
+        # Save uploaded file
+        with open(video_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        tracker.update("File uploaded successfully")
+        
+        # Import quick detector
+        from models.video.quick_detector import analyze_video_quick
+        
+        # Run quick analysis in background thread
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            executor,
+            analyze_video_quick,
+            video_path
+        )
+        
+        # Cleanup uploaded file and temp frames
+        try:
+            os.remove(video_path)
+        except:
+            pass
+        
+        try:
+            import shutil as sh
+            if os.path.exists("temp_frames"):
+                sh.rmtree("temp_frames")
+        except:
+            pass
+        
+        # Check for errors
+        if results is None:
+            raise HTTPException(status_code=500, detail="Analysis returned no results")
+            
+        if 'error' in results:
+            raise HTTPException(status_code=500, detail=results['error'])
+        
+        # Build response
+        response = {
+            "final_score": round(results.get('final_score', 0.5), 3),
+            "risk_level": results.get('risk_level', 'Unknown'),
+            "confidence": round(results.get('confidence', 0.0), 3),
+            "analysis_type": "quick",
+            "method_breakdown": results.get('method_breakdown', {}),
+            "warning": "Quick analysis - some detection layers were skipped for speed"
+        }
+        
+        # Add layer summaries
+        response["layer_summaries"] = {}
+        
+        # Layer 1: Metadata
+        if results.get('layer1_metadata'):
+            meta = results['layer1_metadata']
+            response["layer_summaries"]["metadata"] = {
+                "score": round(meta.get('score', 0), 3),
+                "has_audio": meta.get('has_audio', False)
+            }
+        
+        # Layer 2A: Visual
+        response["layer_summaries"]["visual"] = {}
+        
+        if results.get('layer2a_frame_based'):
+            frame = results['layer2a_frame_based']
+            response["layer_summaries"]["visual"]["frame_based"] = {
+                "ensemble_avg": round(frame.get('avg_ensemble', 0), 3),
+                "ensemble_max": round(frame.get('max_ensemble', 0), 3),
+                "face_avg": round(frame.get('avg_face', 0), 3)
+            }
+        
+        if results.get('layer2a_temporal'):
+            temp = results['layer2a_temporal']
+            response["layer_summaries"]["visual"]["temporal"] = {
+                "score": round(temp.get('score', 0), 3),
+                "identity_shifts": temp.get('identity_shifts', 0)
+            }
+        
+        if results.get('layer2a_3d_video'):
+            video3d = results['layer2a_3d_video']
+            response["layer_summaries"]["visual"]["3d_model"] = {
+                "score": round(video3d.get('score', 0), 3)
+            }
+        
+        # Layer 2B: Audio
+        if results.get('layer2b_audio'):
+            audio = results['layer2b_audio']
+            if audio.get('has_audio'):
+                response["layer_summaries"]["audio"] = {
+                    "score": round(audio.get('score', 0), 3)
+                }
+            else:
+                response["layer_summaries"]["audio"] = {"present": False}
+        
+        tracker.update("Quick analysis complete!")
+        
+        return response
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Quick video analysis failed: {str(e)}")
 
 
 @app.post("/analyze/video/comprehensive")

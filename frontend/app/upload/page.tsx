@@ -153,6 +153,11 @@ export default function UploadPage() {
       return { stage: 'Finalizing Analysis', progress: 95 }
     }
     
+    // Quick Analysis Complete
+    if (message.includes('Quick analysis complete')) {
+      return { stage: 'Quick Analysis Complete', progress: 100 }
+    }
+    
     // Complete
     if (message.includes('complete') || message.includes('Complete') || message.includes('Final Score')) {
       return { stage: 'Analysis Complete', progress: 100 }
@@ -260,19 +265,19 @@ export default function UploadPage() {
       if (fileType === 'image') {
         endpoint = selectedMode === 'quick' ? '/analyze/image' : '/analyze/image/comprehensive'
       } else {
-        endpoint = selectedMode === 'quick' ? '/analyze/video' : '/analyze/video/comprehensive'
+        endpoint = selectedMode === 'quick' ? '/analyze/video/quick' : '/analyze/video/comprehensive'
       }
 
       setState('processing')
       
       let progressInterval: NodeJS.Timeout | null = null
       
-      if (selectedMode === 'deep') {
+      if (selectedMode === 'deep' || (selectedMode === 'quick' && fileType === 'video')) {
         // SSE is already connected from useEffect, just log
         console.log('Using pre-connected SSE for progress updates')
         console.log('Starting analysis request...')
       } else {
-        // For quick scan, simulate progress
+        // For quick image scan, simulate progress
         const progressSteps = [
           { msg: 'Uploading file...', progress: 10 },
           { msg: fileType === 'video' ? 'Extracting frames...' : 'Processing image...', progress: 25 },
