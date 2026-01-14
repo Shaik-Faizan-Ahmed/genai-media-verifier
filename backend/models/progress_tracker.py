@@ -1,5 +1,18 @@
 import threading
+import re
 from typing import Optional, Callable, List
+
+# SECURITY FIX: Compile regex at module level to prevent ReDoS and improve performance.
+# We removed the overly permissive range that was triggering CodeQL alerts.
+EMOJI_PATTERN = re.compile(
+    u"["
+    u"\U0001F600-\U0001F64F"  # Emoticons
+    u"\U0001F300-\U0001F5FF"  # Misc Symbols and Pictographs
+    u"\U0001F680-\U0001F6FF"  # Transport and Map
+    u"\U0001F1E0-\U0001F1FF"  # Flags
+    u"\U00002702-\U000027B0"  # Dingbats
+    u"]+", flags=re.UNICODE
+)
 
 class ProgressTracker:
     def __init__(self):
@@ -18,10 +31,15 @@ class ProgressTracker:
                 self.callbacks.remove(callback)
     
     def update(self, message: str):
+        # SECURITY FIX: Limit input length to prevent Denial of Service (DoS)
+        if len(message) > 500:
+            message = message[:500]
+
         sanitized = self._sanitize_message(message)
         
         with self._lock:
             self.messages.append(sanitized)
+            # Create a copy to iterate safely outside the lock
             callbacks_copy = self.callbacks.copy()
         
         for callback in callbacks_copy:
@@ -29,21 +47,14 @@ class ProgressTracker:
                 callback(sanitized)
             except Exception as e:
                 print(f"Callback error: {e}")
+                # Remove failing callbacks to prevent log spam
                 with self._lock:
                     if callback in self.callbacks:
                         self.callbacks.remove(callback)
     
     def _sanitize_message(self, message: str) -> str:
-        import re
-        emoji_pattern = re.compile("["
-            u"\U0001F600-\U0001F64F"
-            u"\U0001F300-\U0001F5FF"
-            u"\U0001F680-\U0001F6FF"
-            u"\U0001F1E0-\U0001F1FF"
-            u"\U00002702-\U000027B0"
-            u"\U000024C2-\U0001F251"
-            "]+", flags=re.UNICODE)
-        message = emoji_pattern.sub('', message)
+        # Use the pre-compiled, safe regex pattern
+        message = EMOJI_PATTERN.sub('', message)
         message = message.strip().replace('\n', ' ')
         
         simplifications = {
