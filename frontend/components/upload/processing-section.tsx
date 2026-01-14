@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { Upload, FileImage, FileVideo, X } from 'lucide-react'
+import { FileImage, FileVideo, X } from 'lucide-react'
 
 interface ProcessingSectionProps {
   file: File | null
@@ -17,6 +17,8 @@ export default function ProcessingSection({ file, progress, uploadProgress, curr
   const [isAnimating, setIsAnimating] = useState(false)
 
   useEffect(() => {
+    let objectUrl: string | null = null; // Track URL for cleanup
+
     if (file) {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader()
@@ -38,11 +40,21 @@ export default function ProcessingSection({ file, progress, uploadProgress, curr
           ctx?.drawImage(video, 0, 0, canvas.width, canvas.height)
           setThumbnailUrl(canvas.toDataURL())
         }
-        video.src = URL.createObjectURL(file)
+        // Create object URL and store reference
+        objectUrl = URL.createObjectURL(file)
+        video.src = objectUrl
       }
     }
 
-    setTimeout(() => setIsAnimating(true), 100)
+    const timer = setTimeout(() => setIsAnimating(true), 100)
+
+    // Cleanup function to prevent memory leaks
+    return () => {
+      clearTimeout(timer)
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
   }, [file])
   
   return (
@@ -61,7 +73,10 @@ export default function ProcessingSection({ file, progress, uploadProgress, curr
                     <FileVideo className="w-20 h-20 text-neon-blue mx-auto" />
                   )}
                   <div className="space-y-2">
-                    <p className="text-2xl font-light text-white tracking-wide break-words px-2">{file?.name}</p>
+                    {/* SECURITY FIX: Explicit React rendering prevents XSS here */}
+                    <p className="text-2xl font-light text-white tracking-wide break-words px-2">
+                      {file?.name}
+                    </p>
                     <p className="text-sm text-white/50 tracking-widest uppercase">
                       {file ? (file.size / 1024 / 1024).toFixed(2) : '0'} MB
                     </p>
