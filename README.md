@@ -1,10 +1,57 @@
-# V.E.R.I.T.A.S
+<div align="center">
+  <img src="frontend/public/demos/veritas.jpeg" alt="V.E.R.I.T.A.S Logo" width="200"/>
+  
+  # V.E.R.I.T.A.S
+  
+  ### Verifiable Evidence & Risk Inference Through AI Systems
+  
+  AI-powered deepfake detection for images and videos.
+  
+  ---
+  
+  🌐 **[Live Frontend Demo](https://genai-media-verifier.vercel.app/)**
+  
+  ⚠️ **Note:** Backend is not connected on the live demo. Please run locally for full functionality.
+  
+  ---
+  
+</div>
 
-AI-powered deepfake detection for images and videos.
+## 📺 See It In Action
+
+**Image Analysis:**
+
+https://github.com/user-attachments/assets/veritas_image_test.mp4
+
+**Video Analysis:**
+
+https://github.com/user-attachments/assets/veritas_demo.mp4
+
+---
+
+## 📸 Screenshots
+
+**Landing Page:**
+
+![Landing Page](frontend/public/demos/landing_page.png)
+
+**Upload Interface:**
+
+![Upload Interface](frontend/public/demos/upload.png)
+
+**Risk Assessment:**
+
+![Risk Assessment](frontend/public/demos/risk_assessment.png)
+
+**Analysis Dashboard:**
+
+![Dashboard](frontend/public/demos/dashboard.png)
+
+---
 
 ## What is this?
 
-V.E.R.I.T.A.S (Verification Engine for Real-time Image and Text Authenticity Scanning) analyzes media files to detect potential deepfakes and manipulation. Upload an image or video, and get a detailed analysis of authenticity markers.
+V.E.R.I.T.A.S (Verifiable Evidence & Risk Inference Through AI Systems) analyzes media files to detect potential deepfakes and manipulation. Upload an image or video, and get a detailed analysis of authenticity markers.
 
 ## Features
 
